@@ -157,6 +157,38 @@ and the "bias" comes out at 5.9 deg/s, some 25x the true value. Hence
 plausible magnitude is discarded and left to the estimator, which recovers the
 true bias within about 2 seconds either way.
 
+## Current accuracy: NOT competitive, and it diverges
+
+Read this before quoting any number from this package.
+
+Full-sequence APE rmse, against the stored corpus in
+`/var/www/status/slam-quality/versions/`:
+
+| sequence | this | best stored on it |
+|---|---|---|
+| oxford obsq-01 | **1.324** | 0.0628 (mola-lo), 0.0641 (fastlio2), 0.0931 (dlio) |
+| oxford obsq-02 | **4.701** | - |
+| oxford keble-02 | **216.6** | diverges here |
+| grand-tour 2024-10-01 | **3.079** | - |
+| grand-tour 2024-11-02 | **3865** | diverges here |
+
+An earlier 0.039 m on obsq-01 was measured on a 42 s window and tuned on that
+same window. It does not generalize; do not quote it.
+
+The machinery is not the problem. On obsq-01 the per-knot speed matches ground
+truth to 1-2% across the whole 290 s with no sustained departure. The failures
+are robustness, and both sit at the edges rather than in the middle:
+
+- **keble-02** runs away exponentially from 96% of the way through, the step
+  growing about 1.2x per knot. That is an unstable feedback loop.
+- **grand-tour 2024-11-02** settles into a sustained 5 m/s from t=118 s, which
+  a legged robot cannot do: it lost tracking and kept integrating.
+- Every sequence shows a cold start, the first emitted pose being 18x to 51x
+  too fast.
+
+There is no divergence guard anywhere in the estimator. That is the first
+thing to add.
+
 ## The LiDAR/IMU weighting, and why the default is not the datasheet figure
 
 This is the single largest effect measured so far, and it is a balance
