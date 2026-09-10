@@ -77,6 +77,7 @@ map_voxel_size: ${CTLIO_VOXEL_SIZE|0.4}
 
 # --- map ---
 map_radius: ${CTLIO_MAP_RADIUS|120.0}
+map_prune_period: ${CTLIO_PRUNE_PERIOD|25}
 k_correspondences_for_cov: ${CTLIO_K_COV|20}
 min_correspondences_for_cov: ${CTLIO_MIN_K_COV|5}
 max_distance_for_cov: ${CTLIO_MAX_DIST_COV|1.0}
@@ -89,4 +90,7 @@ match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
 match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}
 
 # --- output ---
+# Per-stage timings, printed at the end of the run. Off by default: the
+# breakdown is what says whether the cost is matching, assembly or solve.
+profiler_enabled: ${CTLIO_PROFILE|false}
 map_publish_period: 0.5

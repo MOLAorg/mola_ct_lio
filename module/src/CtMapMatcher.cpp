@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <map>
+#include <optional>
 #include <tuple>
 
 namespace mola
@@ -73,6 +74,7 @@ void CtMapMatcher::initialize(const mrpt::containers::yaml & cfg)
   readDouble("source_voxel_size", params.sourceVoxelSize);
   readDouble("map_voxel_size", params.mapVoxelSize);
   readDouble("map_radius", params.mapRadius);
+  readUint("map_prune_period", params.prunePeriod);
   readFloat("match_threshold", params.matchThreshold);
   readFloat("match_threshold_far", params.matchThresholdFar);
   readFloat("match_knee_range", params.matchKneeRange);
@@ -139,11 +141,18 @@ void CtMapMatcher::match(
     return;
   }
 
-  const std::vector<ct::Vec3> world = deskew(segment, points);
+  std::vector<ct::Vec3> world;
+  {
+    std::optional<mrpt::system::CTimeLoggerEntry> tle;
+    if (profiler) tle.emplace(*profiler, "match.deskew");
+    world = deskew(segment, points);
+  }
 
   // The source cloud is handed over already in the world frame, so the query
   // pose is the identity and the local covariances are computed from the very
   // neighborhoods the residual will use.
+  std::optional<mrpt::system::CTimeLoggerEntry> tleBuild;
+  if (profiler) tleBuild.emplace(*profiler, "match.buildLocalMap");
   auto local = std::make_shared<IncrementalPointCloud>();
   applyCovarianceOptions(*local);
   local->creationOptions.reserve_points = world.size();
@@ -153,6 +162,10 @@ void CtMapMatcher::match(
       static_cast<float>(p.x()), static_cast<float>(p.y()), static_cast<float>(p.z()));
   }
 
+  if (tleBuild) tleBuild.reset();
+
+  std::optional<mrpt::system::CTimeLoggerEntry> tleNN;
+  if (profiler) tleNN.emplace(*profiler, "match.nnSearchCov2Cov");
   mp2p_icp::MatchedPointWithCovList pairings;
 
 #if defined(MP2P_ICP_HAS_MATCHING_DISTANCE_PROFILE)
@@ -167,6 +180,8 @@ void CtMapMatcher::match(
   map_->nn_search_cov2cov(
     *local, mrpt::poses::CPose3D::Identity(), params.matchThreshold, pairings);
 #endif
+
+  if (tleNN) tleNN.reset();
 
   out.reserve(out.size() + pairings.size());
   for (const auto & p : pairings) {
@@ -200,7 +215,18 @@ void CtMapMatcher::insert(
   // Eviction is driven explicitly from the segment's own end pose rather than
   // left to the map's insertion-time rule, so that what the map holds depends
   // only on the trajectory and not on insertion order.
-  if (params.mapRadius > 0) {
+  //
+  // It is deliberately not done on every insertion: pruning rebuilds the k-d
+  // tree and recomputes every covariance, which costs far more than the points
+  // it drops are worth. The map simply carries up to `prunePeriod` segments of
+  // overshoot beyond its radius.
+  insertionsSincePrune_++;
+  if (params.mapRadius > 0 && insertionsSincePrune_ >= std::max<uint32_t>(1, params.prunePeriod)) {
+    insertionsSincePrune_ = 0;
+
+    std::optional<mrpt::system::CTimeLoggerEntry> tle;
+    if (profiler) tle.emplace(*profiler, "mapInsert.prune");
+
     const ct::Vec3 center = segment.end().t;
     map_->keepOnlyPointsNear(
       mrpt::math::TPoint3Df(

@@ -216,6 +216,42 @@ already moving at the first scan, so a sequence that begins at speed loses
 whatever it travels before the window first converges. Real sequences start
 near rest.
 
+## Where the time goes, measured
+
+Set `CTLIO_PROFILE=true` for a per-stage table at the end of a run (MRPT
+`CTimeLogger`). On Oxford observatory-quarter-01, 255 scans:
+
+| stage | before | after | note |
+|---|---|---|---|
+| `mapInsert` | 38.8 s | **4.0 s** | was pruning the map on every 40 ms segment |
+| `optimizeWindow` | 39.6 s | 31.1 s | of which `.match` 21.2 s |
+| ↳ `match.nnSearchCov2Cov` | 19.1 s | 18.4 s | the GICP search, inside the map class |
+| ↳ assembly + solve | ~18.2 s | ~9.9 s | TBB deterministic reduce |
+| `marginalize` | 0.05 s | 0.07 s | negligible, despite being the scary part |
+
+Two lessons worth keeping. Nearly half the runtime was in **map pruning**, not
+in anything algorithmic: `keepOnlyPointsNear()` rebuilds the k-d tree and
+recomputes every covariance, and it was being called on every segment while
+`map_radius` was larger than the whole trajectory, so it evicted nothing.
+Hence `map_prune_period`. And the remaining dominant cost is
+`nnSearchCov2Cov`, which lives in `mola_metric_maps`, not here, so profile
+before optimizing anything local.
+
+## Parallelism and determinism
+
+The per-point assembly uses `tbb::parallel_deterministic_reduce` with a
+**fixed** grain size (512). That is the only reason parallelizing it is
+acceptable: it fixes the split points and the reduction tree from the range
+and the grain alone, so the summation order does not depend on the thread
+count or on task stealing. An automatic grain would give that up.
+
+Verified end to end, not assumed: the same sequence run on 88, 4 and 1 core
+produces **byte-identical** trajectories. `test_ct_normal_equations` guards the
+same property at the unit level via `tbb::global_control`. Any new parallel
+code here has to keep it.
+
+Without TBB the assembly falls back to a serial loop and the build still works.
+
 ## Matching cost, measured
 
 `CtMapMatcher.TheEstimatorRecoversAPerturbedSegmentThroughRealMatching` runs

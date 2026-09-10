@@ -398,6 +398,10 @@ void CtLidarInertialOdometry::finish()
   }
   finished_ = true;
   engine_->finish();
+
+  if (engine_->profiler.isEnabled()) {
+    MRPT_LOG_INFO_STREAM("Stage timings:\n" << engine_->profiler.getStatsAsText());
+  }
 }
 
 void CtLidarInertialOdometry::onQuit() { finish(); }

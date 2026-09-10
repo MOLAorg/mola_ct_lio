@@ -66,6 +66,10 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("bias_sigma_gyro", params.optimizer.biasSigmaGyro);
   readDouble("twist_continuity_weight", params.optimizer.twistContinuityWeight);
 
+  if (cfg.has("profiler_enabled")) {
+    profiler.enable(cfg["profiler_enabled"].as<bool>());
+  }
+
   if (cfg.has("kernel")) {
     const auto name = cfg["kernel"].as<std::string>();
     if (name == "None") {
@@ -78,6 +82,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   }
 
   matcher_.params = params.matcher;
+  matcher_.profiler = &profiler;
   matcher_.initialize(cfg);
   params.matcher = matcher_.params;
 
@@ -255,9 +260,14 @@ void CtOdometryEngine::closeReadySegments(double latestPointTime)
       break;
     }
 
-    ct::Segment seg = buildSegment(tBegin, tEnd);
+    ct::Segment seg;
+    {
+      mrpt::system::CTimeLoggerEntry tle(profiler, "buildSegment");
+      seg = buildSegment(tBegin, tEnd);
+    }
 
     if (params.optimizer.useImu) {
+      mrpt::system::CTimeLoggerEntry tle(profiler, "preintegrate");
       seg.imu = preintegrate(tBegin, tEnd, knots_.back().state);
       seg.hasImu = seg.imu.dt > 0;
     }
@@ -294,12 +304,18 @@ void CtOdometryEngine::optimizeWindow()
   std::vector<ct::Segment> segments(segments_.begin(), segments_.end());
 
   optimizer_.params = params.optimizer;
+
+  mrpt::system::CTimeLoggerEntry tleOpt(profiler, "optimizeWindow");
   const auto result = optimizer_.optimize(
     knots, segments,
     [this](
       std::size_t, const ct::CtSegment & seg, const std::vector<ct::SegmentPoint> & points,
-      std::vector<ct::PointCorrespondence> & out) { matcher_.match(seg, points, out); },
+      std::vector<ct::PointCorrespondence> & out) {
+      mrpt::system::CTimeLoggerEntry tle(profiler, "optimizeWindow.match");
+      matcher_.match(seg, points, out);
+    },
     prior_);
+  tleOpt.stop();
 
   for (std::size_t i = 0; i < knots.size(); i++) {
     knots_[i] = knots[i];
@@ -311,13 +327,17 @@ void CtOdometryEngine::optimizeWindow()
 void CtOdometryEngine::slideWindow()
 {
   if (!matcher_.empty()) {
+    mrpt::system::CTimeLoggerEntry tle(profiler, "marginalize");
     prior_ = ct::marginalizeLeadingKnots(optimizer_.lastSystem(), 1);
   }
 
   emitOldest();
 
   const ct::CtSegment oldest(knots_[0].state.T, knots_[1].state.T);
-  matcher_.insert(oldest, segments_[0].points);
+  {
+    mrpt::system::CTimeLoggerEntry tle(profiler, "mapInsert");
+    matcher_.insert(oldest, segments_[0].points);
+  }
 
   knots_.pop_front();
   segments_.pop_front();

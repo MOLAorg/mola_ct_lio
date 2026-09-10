@@ -175,3 +175,39 @@ TEST(CtNormalEquations, HessianIsSymmetricAndPositiveSemidefinite)
   const Eigen::SelfAdjointEigenSolver<Mat12> es(blk.H);
   EXPECT_GT(es.eigenvalues().minCoeff(), -1e-9);
 }
+
+#if defined(MOLA_CT_LIO_HAS_TBB)
+#include <tbb/global_control.h>
+
+/** The assembly is parallel, so its floating-point summation order must not
+ * depend on how many threads happen to run it. That is the whole reason for
+ * using the deterministic reduction with a fixed grain, and it is the property
+ * the estimator's bit-exactness rests on, so it is asserted rather than
+ * assumed.
+ */
+TEST(CtNormalEquations, AssemblyIsIndependentOfTheThreadCount)
+{
+  std::mt19937 rng(31);
+  const Scene s = makeScene(rng, 20000, true);
+
+  const CtSegment seg(s.Tb, s.Te);
+
+  const auto assembleWith = [&](std::size_t threads) {
+    tbb::global_control gc(tbb::global_control::max_allowed_parallelism, threads);
+    return assembleSegmentBlock(seg, seg, s.points, s.correspondences, RobustKernel::Cauchy, 0.5);
+  };
+
+  const LidarBlock one = assembleWith(1);
+  const LidarBlock four = assembleWith(4);
+  const LidarBlock many = assembleWith(32);
+
+  EXPECT_EQ(one.inliers, four.inliers);
+  EXPECT_EQ(one.inliers, many.inliers);
+  EXPECT_EQ(one.chi2, four.chi2);
+  EXPECT_EQ(one.chi2, many.chi2);
+  EXPECT_EQ(one.H, four.H);
+  EXPECT_EQ(one.H, many.H);
+  EXPECT_EQ(one.g, four.g);
+  EXPECT_EQ(one.g, many.g);
+}
+#endif

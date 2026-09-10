@@ -18,6 +18,7 @@
 #include <mola_ct_lio/CtNormalEquations.h>
 #include <mola_metric_maps/IncrementalPointCloud.h>
 #include <mrpt/containers/yaml.h>
+#include <mrpt/system/CTimeLogger.h>
 
 #include <cstdint>
 #include <vector>
@@ -56,6 +57,14 @@ public:
     /// Points farther than this from the latest sensor position are dropped. [m]
     double mapRadius = 120.0;
 
+    /// How many insertions to make between two prunings of the map.
+    ///
+    /// Pruning rebuilds the k-d tree and recomputes every covariance, so doing
+    /// it on every segment costs far more than the points it evicts are worth,
+    /// and on a trajectory shorter than `mapRadius` it evicts nothing at all.
+    /// The map is allowed to overshoot its radius by this many insertions.
+    uint32_t prunePeriod = 25;
+
     /// Matching distance, and its optional range-adaptive form. [m]
     float matchThreshold = 0.4f;
     float matchThresholdFar = 0.0f;
@@ -70,6 +79,9 @@ public:
   };
 
   Params params;
+
+  /// Shared with the engine's logger, so the breakdown is one table.
+  mrpt::system::CTimeLogger * profiler = nullptr;
 
   void initialize(const mrpt::containers::yaml & cfg);
 
@@ -97,6 +109,7 @@ public:
 
 private:
   std::shared_ptr<IncrementalPointCloud> map_;
+  uint32_t insertionsSincePrune_ = 0;
 
   void applyCovarianceOptions(IncrementalPointCloud & m) const;
 };

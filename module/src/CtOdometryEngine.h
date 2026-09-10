@@ -17,6 +17,7 @@
 
 #include <mola_ct_lio/WindowOptimizer.h>
 #include <mrpt/containers/yaml.h>
+#include <mrpt/system/CTimeLogger.h>
 
 #include <deque>
 #include <functional>
@@ -111,6 +112,12 @@ public:
   void finish();
 
   [[nodiscard]] const CtMapMatcher & matcher() const { return matcher_; }
+
+  /** Per-stage timings. Enabled by `profiler_enabled` in the YAML; the
+   * breakdown is what says whether the cost is in the matching, the assembly
+   * or the solve, which is not obvious from the outside.
+   */
+  mrpt::system::CTimeLogger profiler{false, "mola_ct_lio"};
   [[nodiscard]] std::size_t knotsEmitted() const { return knotsEmitted_; }
 
 private:

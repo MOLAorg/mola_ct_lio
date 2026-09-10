@@ -14,6 +14,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(Eigen3 REQUIRED)
+find_package(TBB QUIET)
 
 # The module layer needs the MOLA/MRPT stack; the core above does not.
 find_package(mola_common QUIET)
@@ -43,6 +44,18 @@ target_include_directories(mola_ct_lio_core PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(mola_ct_lio_core PUBLIC Eigen3::Eigen)
+
+# The per-point assembly is the one hot loop in the core. TBB's *deterministic*
+# reduction is what makes parallelizing it acceptable here: it fixes the split
+# points and the reduction tree, so the floating-point summation order does not
+# depend on the thread count and a run stays bit-exact.
+if(TBB_FOUND)
+  target_link_libraries(mola_ct_lio_core PUBLIC TBB::tbb)
+  target_compile_definitions(mola_ct_lio_core PUBLIC MOLA_CT_LIO_HAS_TBB)
+  message(STATUS "mola_ct_lio: TBB found, the assembly runs in parallel")
+else()
+  message(STATUS "mola_ct_lio: no TBB, the assembly runs serially")
+endif()
 set_target_properties(mola_ct_lio_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ------------------------------------------------------------------------------
