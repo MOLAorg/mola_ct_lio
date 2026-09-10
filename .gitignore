@@ -1,0 +1,9 @@
+build/
+install/
+log/
+*.tum
+*.txt.orig
+__pycache__/
+build/
+install/
+log/
