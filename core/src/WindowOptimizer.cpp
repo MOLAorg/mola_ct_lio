@@ -115,6 +115,8 @@ WindowOptimizer::Result WindowOptimizer::optimize(
   const int rematchEvery = std::max(1, params.rematchEvery);
 
   for (int iter = 0; iter < params.maxIterations; iter++) {
+    const bool rematchedThisIteration = iter % rematchEvery == 0;
+
     system_.setZero();
     result.chi2 = 0;
     result.errorSum = 0;
@@ -133,7 +135,7 @@ WindowOptimizer::Result WindowOptimizer::optimize(
         atLinearizationPoint ? CtSegment(knots[k].jacobianState().T, knots[k + 1].jacobianState().T)
                              : current;
 
-      if (iter % rematchEvery == 0) {
+      if (rematchedThisIteration) {
         correspondences_[k].clear();
         match(k, current, segments[k].points, correspondences_[k]);
       }
@@ -206,7 +208,13 @@ WindowOptimizer::Result WindowOptimizer::optimize(
     }
 
     result.iterations = iter + 1;
-    if (maxTranslationStep < params.convergenceThreshold) {
+
+    // Frozen pairings have an optimum of their own, and the trajectory reaches
+    // it in a couple of iterations while still being far from where fresh
+    // correspondences would put it. Convergence may therefore only be declared
+    // on an iteration that actually re-matched, or the estimator stops early
+    // and silently, which is exactly what it must not do.
+    if (rematchedThisIteration && maxTranslationStep < params.convergenceThreshold) {
       result.converged = true;
       break;
     }

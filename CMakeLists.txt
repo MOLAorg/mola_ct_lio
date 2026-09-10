@@ -18,6 +18,7 @@ find_package(Eigen3 REQUIRED)
 # The module layer needs the MOLA/MRPT stack; the core above does not.
 find_package(mola_common QUIET)
 find_package(mola_metric_maps QUIET)
+find_package(mola_imu_preintegration QUIET)
 find_package(mp2p_icp_map QUIET)
 find_package(mrpt-maps QUIET)
 
@@ -45,11 +46,12 @@ set_target_properties(mola_ct_lio_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # The matching layer: the local map and the correspondence queries.
 # ------------------------------------------------------------------------------
 set(MOLA_CT_LIO_HAS_MODULE FALSE)
-if(mola_metric_maps_FOUND AND mrpt-maps_FOUND)
+if(mola_metric_maps_FOUND AND mola_imu_preintegration_FOUND AND mrpt-maps_FOUND)
   set(MOLA_CT_LIO_HAS_MODULE TRUE)
 
   add_library(mola_ct_lio_matching
     module/src/CtMapMatcher.cpp
+    module/src/CtOdometryEngine.cpp
   )
   target_include_directories(mola_ct_lio_matching PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/module/src>
@@ -57,6 +59,7 @@ if(mola_metric_maps_FOUND AND mrpt-maps_FOUND)
   target_link_libraries(mola_ct_lio_matching PUBLIC
     mola_ct_lio_core
     mola::mola_metric_maps
+    mola::mola_imu_preintegration
     mrpt::maps
   )
   set_target_properties(mola_ct_lio_matching PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -91,6 +94,9 @@ if(ament_cmake_FOUND)
     if(MOLA_CT_LIO_HAS_MODULE)
       ament_add_gtest(test_map_matcher module/test/test_map_matcher.cpp)
       target_link_libraries(test_map_matcher mola_ct_lio_matching)
+
+      ament_add_gtest(test_odometry_engine module/test/test_odometry_engine.cpp)
+      target_link_libraries(test_odometry_engine mola_ct_lio_matching)
     endif()
   endif()
 

@@ -110,6 +110,25 @@ table in sync when adding a parameter.
 | `baselink2imu_pose_str` | `CTLIO_BASELINK2IMU` | |
 | `fallback_scan_period` | `CTLIO_FALLBACK_PERIOD` | 0.1 s; used only when the scan carries no usable per-point time field |
 
+## What the system test establishes
+
+`test_odometry_engine` simulates a platform starting from rest and
+accelerating, and measures the emitted trajectory against the truth. Two
+results worth keeping in mind when reading any later number:
+
+- In a scene with structure in every direction, LiDAR-only and LiDAR-inertial
+  both track to under 5 cm over ~1.8 m.
+- In a **corridor**, where every surface runs along the direction of travel,
+  axial motion is not observable from the geometry at all. LiDAR-only drifts
+  (~0.2 m); with the IMU the same run finishes at **0.6 mm**. That is the test
+  that says the inertial coupling carries information rather than merely being
+  wired up, so treat it as the regression guard on the IMU path.
+
+A cold start is a real limitation, not a bug: an odometry cannot know it was
+already moving at the first scan, so a sequence that begins at speed loses
+whatever it travels before the window first converges. Real sequences start
+near rest.
+
 ## Matching cost, measured
 
 `CtMapMatcher.TheEstimatorRecoversAPerturbedSegmentThroughRealMatching` runs

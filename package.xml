@@ -13,6 +13,7 @@
   <depend>eigen</depend>
   <depend>mola_common</depend>
   <depend>mola_metric_maps</depend>
+  <depend>mola_imu_preintegration</depend>
   <depend>mp2p_icp_map</depend>
   <depend>mrpt_libmaps</depend>
   <depend>mrpt_libobs</depend>
