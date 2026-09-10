@@ -23,6 +23,7 @@ find_package(Eigen3 REQUIRED)
 # ------------------------------------------------------------------------------
 add_library(mola_ct_lio_core
   core/src/CtSegment.cpp
+  core/src/CtNormalEquations.cpp
 )
 target_include_directories(mola_ct_lio_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/include>
@@ -42,6 +43,9 @@ if(ament_cmake_FOUND)
 
     ament_add_gtest(test_ct_jacobians core/test/test_ct_jacobians.cpp)
     target_link_libraries(test_ct_jacobians mola_ct_lio_core)
+
+    ament_add_gtest(test_ct_normal_equations core/test/test_ct_normal_equations.cpp)
+    target_link_libraries(test_ct_normal_equations mola_ct_lio_core)
   endif()
 
   install(DIRECTORY core/include/ DESTINATION include)
