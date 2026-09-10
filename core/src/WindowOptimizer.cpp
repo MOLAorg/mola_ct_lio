@@ -111,6 +111,9 @@ WindowOptimizer::Result WindowOptimizer::optimize(
   const auto knotCount = static_cast<int>(knots.size());
   system_.resize(knotCount, dim);
 
+  correspondences_.assign(segments.size(), {});
+  const int rematchEvery = std::max(1, params.rematchEvery);
+
   for (int iter = 0; iter < params.maxIterations; iter++) {
     system_.setZero();
     result.chi2 = 0;
@@ -130,14 +133,16 @@ WindowOptimizer::Result WindowOptimizer::optimize(
         atLinearizationPoint ? CtSegment(knots[k].jacobianState().T, knots[k + 1].jacobianState().T)
                              : current;
 
-      correspondences_.clear();
-      match(k, current, segments[k].points, correspondences_);
-      if (correspondences_.empty()) {
+      if (iter % rematchEvery == 0) {
+        correspondences_[k].clear();
+        match(k, current, segments[k].points, correspondences_[k]);
+      }
+      if (correspondences_[k].empty()) {
         continue;
       }
 
       const LidarBlock blk = assembleSegmentBlock(
-        current, jacobianAt, segments[k].points, correspondences_, params.kernel,
+        current, jacobianAt, segments[k].points, correspondences_[k], params.kernel,
         params.kernelScale);
 
       system_.addPosePairBlock(static_cast<int>(k), blk.H, blk.g);

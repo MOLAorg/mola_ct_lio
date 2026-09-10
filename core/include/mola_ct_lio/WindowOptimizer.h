@@ -92,6 +92,14 @@ public:
     RobustKernel kernel = RobustKernel::Cauchy;
     double kernelScale = 0.5;
 
+    /// How often the correspondences are searched again, in iterations. One
+    /// re-matches every iteration, as upstream Traj-LO does with its cheap
+    /// voxel lookup; a larger value amortizes a costlier matcher over several
+    /// inner iterations that only move the trajectory. It trades matching cost
+    /// against how stale the pairings are allowed to get, so it is worth a
+    /// sweep rather than a guess.
+    int rematchEvery = 1;
+
     bool useImu = true;
     Vec3 gravity{0.0, 0.0, -9.81};
     double biasSigmaAcc = 1e-3;
@@ -139,7 +147,9 @@ public:
 
 private:
   WindowSystem system_;
-  mutable std::vector<PointCorrespondence> correspondences_;
+
+  /// Correspondences of each segment, kept between re-matches.
+  std::vector<std::vector<PointCorrespondence>> correspondences_;
 
   void addTwistContinuity(const std::vector<Knot> & knots);
 };

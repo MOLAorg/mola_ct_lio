@@ -56,6 +56,7 @@ table in sync when adding a parameter.
 |---|---|---|---|---|
 | `kernel` | `CTLIO_KERNEL` | `Cauchy` | None, Cauchy, GemanMcClure | Cauchy is upstream's form |
 | `kernel_scale` | `CTLIO_KERNEL_SCALE` | 0.5 m | 0.1 - 2.0 | upstream ties this to the adaptive threshold over 3 |
+| `rematch_every` | `CTLIO_REMATCH_EVERY` | 1 | 1 - 5 | iterations between correspondence searches. 1 is upstream's behavior and is only affordable with a cheap matcher; a GICP search over an incremental map wants more |
 
 ### IMU
 
@@ -108,6 +109,26 @@ table in sync when adding a parameter.
 | `baselink2lidar_pose_str` | `CTLIO_BASELINK2LIDAR` | Oxford Spires needs `0 0 0.124 180 0 0`. Getting this wrong costs almost nothing in APE and everything in RPE, so check RPE when changing it |
 | `baselink2imu_pose_str` | `CTLIO_BASELINK2IMU` | |
 | `fallback_scan_period` | `CTLIO_FALLBACK_PERIOD` | 0.1 s; used only when the scan carries no usable per-point time field |
+
+## Two facts the matching layer depends on
+
+Both checked in `mola::IncrementalPointCloud`, both worth re-checking if that
+map or `Matcher_Cov2Cov` changes underneath us.
+
+- `point_with_cov_pair_t::local_idx` is the **storage slot** of the local map.
+  A freshly built map has no tombstones, so the slot equals the insertion
+  order, which is what lets a pairing be mapped back to the source point's
+  `alpha`. Reusing a local map across segments instead of rebuilding it would
+  break that identity.
+- The pairings come back **sorted by `local_idx`**, a total and canonical
+  order that does not depend on the tree shape or the thread count. The
+  assembly's summation order therefore inherits determinism for free with
+  this matcher. A different matcher has to be checked for the same property
+  before it can be used in a deterministic run.
+
+`point_plane_pair_t` carries **no index**, so `Matcher_Points_KnnPlane`
+cannot currently be mapped back to `alpha`. Using it needs a small upstream
+`mp2p_icp` change first.
 
 ## Dataset gotchas carried over from the wrapper work
 
