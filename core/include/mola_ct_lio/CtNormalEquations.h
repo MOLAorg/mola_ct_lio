@@ -22,8 +22,14 @@
 
 namespace mola::ct
 {
-/** A source point of one segment, in the body frame of the segment's begin
- * knot, together with its normalized time within the segment.
+/** A source point of one segment.
+ *
+ * `p` is the raw sensor reading: the point in the body frame **at its own
+ * capture instant**, not re-expressed in any knot's frame. Deskewing is what
+ * the estimator does with it, by placing it at `poseAt(alpha)`, so undoing the
+ * motion beforehand would apply the correction twice.
+ *
+ * `alpha` is the point's normalized time within the segment, in [0,1].
  */
 struct SegmentPoint
 {

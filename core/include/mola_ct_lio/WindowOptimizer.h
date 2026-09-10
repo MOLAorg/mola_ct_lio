@@ -49,8 +49,8 @@ struct Knot
  */
 struct Segment
 {
-  /// Source points, in the body frame of the segment's begin knot, each with
-  /// its normalized time within the segment.
+  /// Source points, as raw sensor readings each carrying its own normalized
+  /// time within the segment. See SegmentPoint.
   std::vector<SegmentPoint> points;
 
   PreintegratedImu imu;
