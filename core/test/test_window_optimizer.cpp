@@ -271,6 +271,7 @@ TEST(WindowOptimizer, MarginalizingAndSlidingKeepsTheTrajectory)
   for (auto & k : slid) {
     k.linearized = true;
     k.linearizationPoint = k.state;
+    k.priorAnchor = k.state;
   }
   slid.push_back(w.knots[4]);
 

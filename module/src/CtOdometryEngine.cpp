@@ -60,6 +60,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readInt("rematch_every", params.optimizer.rematchEvery);
   readDouble("convergence_threshold", params.optimizer.convergenceThreshold);
   readDouble("lambda", params.optimizer.lambda);
+  readDouble("max_step_translation", params.optimizer.maxStepTranslation);
   readDouble("kernel_scale", params.optimizer.kernelScale);
   readBool("use_imu", params.optimizer.useImu);
   readDouble("bias_sigma_acc", params.optimizer.biasSigmaAcc);
@@ -342,11 +343,16 @@ void CtOdometryEngine::slideWindow()
   knots_.pop_front();
   segments_.pop_front();
 
-  // Every knot the prior speaks about must keep a fixed linearization point
-  // from here on, and that point is where they stood when it was built.
+  // Every knot the prior speaks about is pinned from here on. The Jacobian
+  // point is captured only the first time, so a knot keeps the same one for
+  // its whole life in the window; the prior's own anchor moves with each new
+  // prior, since that is where its gradient was just evaluated.
   for (auto & k : knots_) {
-    k.linearized = true;
-    k.linearizationPoint = k.state;
+    if (!k.linearized) {
+      k.linearized = true;
+      k.linearizationPoint = k.state;
+    }
+    k.priorAnchor = k.state;
   }
 }
 

@@ -33,9 +33,24 @@ struct Knot
    * Jacobians must be evaluated at `linearizationPoint`, not at the current
    * estimate, or the prior and the new data stop describing the same
    * quantity and the estimator quietly gains information it never had.
+   *
+   * The point is captured the first time the knot is frozen and never moved
+   * again while it lives in the window: re-capturing it on every slide would
+   * mean each prior inherits Jacobians taken somewhere else, which is the
+   * very inconsistency the fixed point exists to avoid.
    */
   bool linearized = false;
   KnotState linearizationPoint;
+
+  /** Where this knot stood when the current prior's gradient was evaluated.
+   *
+   * Distinct from `linearizationPoint`: that one fixes *where the Jacobians
+   * are taken*, this one fixes *what the prior's gradient is a gradient at*.
+   * They coincide the first time a knot is marginalized and part company on
+   * every slide after it, so re-centering the prior on the wrong one leaves a
+   * residual gradient that grows with the window's own corrections.
+   */
+  KnotState priorAnchor;
 
   [[nodiscard]] const KnotState & jacobianState() const
   {
@@ -89,6 +104,13 @@ public:
     /// Gauss-Newton, which is what upstream Traj-LO uses.
     double lambda = 0.0;
 
+    /// Largest translation any single knot may be moved by one iteration. A
+    /// step asking for more is scaled down as a whole, keeping its direction.
+    /// Gauss-Newton has no trust region of its own, so without this a single
+    /// badly conditioned iteration can throw the window far enough that the
+    /// next matching finds nothing and the two feed each other. [m]
+    double maxStepTranslation = 1.0;
+
     RobustKernel kernel = RobustKernel::Cauchy;
     double kernelScale = 0.5;
 
@@ -123,6 +145,10 @@ public:
     double chi2 = 0;
     double errorSum = 0;
     std::size_t inliers = 0;
+
+    /// Whether any iteration asked for a longer step than the trust region
+    /// allows. A window that reports this was not simply refining.
+    bool stepWasLimited = false;
   };
 
   /** Runs the optimization in place.
@@ -152,6 +178,15 @@ private:
   std::vector<std::vector<PointCorrespondence>> correspondences_;
 
   void addTwistContinuity(const std::vector<Knot> & knots);
+
+  /** Builds the normal equations of the whole window at the current states.
+   *
+   * @param rematch  Whether to search the correspondences again, or reuse the
+   *                 ones cached by the last call that did.
+   */
+  void assemble(
+    const std::vector<Knot> & knots, const std::vector<Segment> & segments,
+    const MatchFunction & match, const MarginalizationPrior & prior, bool rematch, Result & result);
 };
 
 /** The deviation of a knot from a reference state, in the increment convention

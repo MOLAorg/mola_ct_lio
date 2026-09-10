@@ -98,6 +98,88 @@ void WindowOptimizer::addTwistContinuity(const std::vector<Knot> & knots)
   }
 }
 
+void WindowOptimizer::assemble(
+  const std::vector<Knot> & knots, const std::vector<Segment> & segments,
+  const MatchFunction & match, const MarginalizationPrior & prior, bool rematch, Result & result)
+{
+  const int dim = knotDim();
+  const auto knotCount = static_cast<int>(knots.size());
+
+  system_.setZero();
+  result.chi2 = 0;
+  result.errorSum = 0;
+  result.inliers = 0;
+
+  // --- LiDAR ---
+  for (std::size_t k = 0; k < segments.size(); k++) {
+    if (segments[k].points.empty()) {
+      continue;
+    }
+
+    const CtSegment current(knots[k].state.T, knots[k + 1].state.T);
+
+    const bool atLinearizationPoint = knots[k].linearized || knots[k + 1].linearized;
+    const CtSegment jacobianAt =
+      atLinearizationPoint ? CtSegment(knots[k].jacobianState().T, knots[k + 1].jacobianState().T)
+                           : current;
+
+    if (rematch) {
+      correspondences_[k].clear();
+      match(k, current, segments[k].points, correspondences_[k]);
+    }
+    if (correspondences_[k].empty()) {
+      continue;
+    }
+
+    const LidarBlock blk = assembleSegmentBlock(
+      current, jacobianAt, segments[k].points, correspondences_[k], params.kernel,
+      params.kernelScale);
+
+    system_.addPosePairBlock(static_cast<int>(k), blk.H, blk.g);
+
+    result.chi2 += blk.chi2;
+    result.errorSum += blk.errorSum;
+    result.inliers += blk.inliers;
+  }
+
+  // --- inertial, or the kinematic term that stands in for it ---
+  if (params.useImu) {
+    for (std::size_t k = 0; k < segments.size(); k++) {
+      if (!segments[k].hasImu) {
+        continue;
+      }
+      const ImuBlock imuBlk =
+        assembleImuBlock(segments[k].imu, knots[k].state, knots[k + 1].state, params.gravity);
+      system_.addStatePairBlock(static_cast<int>(k), imuBlk.H, imuBlk.g);
+      result.chi2 += imuBlk.chi2;
+
+      const double dt = std::max(1e-6, knots[k + 1].t - knots[k].t);
+      const ImuBlock rw = assembleBiasRandomWalkBlock(
+        knots[k].state, knots[k + 1].state, dt, params.biasSigmaAcc, params.biasSigmaGyro);
+      system_.addStatePairBlock(static_cast<int>(k), rw.H, rw.g);
+      result.chi2 += rw.chi2;
+    }
+  } else {
+    addTwistContinuity(knots);
+  }
+
+  // --- what the states that already left the window still have to say ---
+  if (prior.valid && prior.H.rows() > 0) {
+    const auto priorSize = static_cast<int>(prior.H.rows());
+    const int priorKnots = priorSize / dim;
+
+    Eigen::VectorXd deviation = Eigen::VectorXd::Zero(priorSize);
+    for (int k = 0; k < priorKnots && k < knotCount; k++) {
+      const Vec15 d = knotDeviation(knots[k].state, knots[k].priorAnchor);
+      deviation.segment(k * dim, dim) = d.head(dim);
+    }
+
+    // The prior's gradient was taken where the states stood when it was built,
+    // so it has to be re-centered on wherever they have moved to since.
+    system_.addLeadingPrior(prior.H, prior.g - prior.H * deviation);
+  }
+}
+
 WindowOptimizer::Result WindowOptimizer::optimize(
   std::vector<Knot> & knots, const std::vector<Segment> & segments, const MatchFunction & match,
   const MarginalizationPrior & prior)
@@ -114,87 +196,33 @@ WindowOptimizer::Result WindowOptimizer::optimize(
   correspondences_.assign(segments.size(), {});
   const int rematchEvery = std::max(1, params.rematchEvery);
 
+  bool stepWasFinite = true;
+
   for (int iter = 0; iter < params.maxIterations; iter++) {
     const bool rematchedThisIteration = iter % rematchEvery == 0;
 
-    system_.setZero();
-    result.chi2 = 0;
-    result.errorSum = 0;
-    result.inliers = 0;
-
-    // --- LiDAR ---
-    for (std::size_t k = 0; k < segments.size(); k++) {
-      if (segments[k].points.empty()) {
-        continue;
-      }
-
-      const CtSegment current(knots[k].state.T, knots[k + 1].state.T);
-
-      const bool atLinearizationPoint = knots[k].linearized || knots[k + 1].linearized;
-      const CtSegment jacobianAt =
-        atLinearizationPoint ? CtSegment(knots[k].jacobianState().T, knots[k + 1].jacobianState().T)
-                             : current;
-
-      if (rematchedThisIteration) {
-        correspondences_[k].clear();
-        match(k, current, segments[k].points, correspondences_[k]);
-      }
-      if (correspondences_[k].empty()) {
-        continue;
-      }
-
-      const LidarBlock blk = assembleSegmentBlock(
-        current, jacobianAt, segments[k].points, correspondences_[k], params.kernel,
-        params.kernelScale);
-
-      system_.addPosePairBlock(static_cast<int>(k), blk.H, blk.g);
-
-      result.chi2 += blk.chi2;
-      result.errorSum += blk.errorSum;
-      result.inliers += blk.inliers;
-    }
-
-    // --- inertial, or the kinematic term that stands in for it ---
-    if (params.useImu) {
-      for (std::size_t k = 0; k < segments.size(); k++) {
-        if (!segments[k].hasImu) {
-          continue;
-        }
-        const ImuBlock imuBlk =
-          assembleImuBlock(segments[k].imu, knots[k].state, knots[k + 1].state, params.gravity);
-        system_.addStatePairBlock(static_cast<int>(k), imuBlk.H, imuBlk.g);
-        result.chi2 += imuBlk.chi2;
-
-        const double dt = std::max(1e-6, knots[k + 1].t - knots[k].t);
-        const ImuBlock rw = assembleBiasRandomWalkBlock(
-          knots[k].state, knots[k + 1].state, dt, params.biasSigmaAcc, params.biasSigmaGyro);
-        system_.addStatePairBlock(static_cast<int>(k), rw.H, rw.g);
-        result.chi2 += rw.chi2;
-      }
-    } else {
-      addTwistContinuity(knots);
-    }
-
-    // --- what the states that already left the window still have to say ---
-    if (prior.valid && prior.H.rows() > 0) {
-      const auto priorSize = static_cast<int>(prior.H.rows());
-      const int priorKnots = priorSize / dim;
-
-      Eigen::VectorXd deviation = Eigen::VectorXd::Zero(priorSize);
-      for (int k = 0; k < priorKnots && k < knotCount; k++) {
-        const Vec15 d = knotDeviation(knots[k].state, knots[k].linearizationPoint);
-        deviation.segment(k * dim, dim) = d.head(dim);
-      }
-
-      // The prior was written about the linearization point, so it has to be
-      // re-centered on wherever the states have moved to since.
-      system_.addLeadingPrior(prior.H, prior.g - prior.H * deviation);
-    }
+    assemble(knots, segments, match, prior, rematchedThisIteration, result);
 
     // --- solve and step ---
-    const Eigen::VectorXd step = system_.solve(params.lambda);
+    Eigen::VectorXd step = system_.solve(params.lambda);
     if (!step.allFinite()) {
+      stepWasFinite = false;
       break;
+    }
+
+    // Gauss-Newton is free to propose an arbitrarily long step when the system
+    // is poorly conditioned. Scaling the whole step keeps its direction, which
+    // a per-knot clamp would not, and lets the following iterations walk the
+    // rest of the way if the direction was right after all.
+    if (params.maxStepTranslation > 0) {
+      double longest = 0;
+      for (int k = 0; k < knotCount; k++) {
+        longest = std::max(longest, step.segment<3>(k * dim + kIdxPosition).norm());
+      }
+      if (longest > params.maxStepTranslation) {
+        step *= params.maxStepTranslation / longest;
+        result.stepWasLimited = true;
+      }
     }
 
     double maxTranslationStep = 0;
@@ -218,6 +246,15 @@ WindowOptimizer::Result WindowOptimizer::optimize(
       result.converged = true;
       break;
     }
+  }
+
+  // The system a marginalization is taken from has to describe the states as
+  // they finally stand, not as they stood one step earlier: the prior it
+  // yields is declared to be a gradient at the final estimate, and any
+  // mismatch there is a spurious force that the next window has no way to
+  // tell from real information.
+  if (stepWasFinite && result.iterations > 0) {
+    assemble(knots, segments, match, prior, false, result);
   }
 
   return result;
