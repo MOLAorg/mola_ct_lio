@@ -19,6 +19,9 @@ find_package(Eigen3 REQUIRED)
 find_package(mola_common QUIET)
 find_package(mola_metric_maps QUIET)
 find_package(mola_imu_preintegration QUIET)
+find_package(mola_kernel QUIET)
+find_package(mola_yaml QUIET)
+find_package(mrpt-obs QUIET)
 find_package(mp2p_icp_map QUIET)
 find_package(mrpt-maps QUIET)
 
@@ -52,6 +55,7 @@ if(mola_metric_maps_FOUND AND mola_imu_preintegration_FOUND AND mrpt-maps_FOUND)
   add_library(mola_ct_lio_matching
     module/src/CtMapMatcher.cpp
     module/src/CtOdometryEngine.cpp
+    module/src/ScanAdapters.cpp
   )
   target_include_directories(mola_ct_lio_matching PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/module/src>
@@ -61,10 +65,36 @@ if(mola_metric_maps_FOUND AND mola_imu_preintegration_FOUND AND mrpt-maps_FOUND)
     mola::mola_metric_maps
     mola::mola_imu_preintegration
     mrpt::maps
+    mrpt::obs
   )
   set_target_properties(mola_ct_lio_matching PROPERTIES POSITION_INDEPENDENT_CODE ON)
 else()
   message(STATUS "mola_metric_maps or mrpt-maps not found: skipping the matching layer")
+endif()
+
+# ------------------------------------------------------------------------------
+# The MOLA front-end module.
+# ------------------------------------------------------------------------------
+set(MOLA_CT_LIO_HAS_FRONTEND FALSE)
+if(MOLA_CT_LIO_HAS_MODULE AND mola_kernel_FOUND AND mola_yaml_FOUND)
+  set(MOLA_CT_LIO_HAS_FRONTEND TRUE)
+
+  add_library(${PROJECT_NAME} SHARED
+    module/src/CtLidarInertialOdometry.cpp
+    module/src/register.cpp
+  )
+  target_include_directories(${PROJECT_NAME} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/module/include>
+    $<INSTALL_INTERFACE:include>
+  )
+  target_include_directories(${PROJECT_NAME} PRIVATE module/src)
+  target_link_libraries(${PROJECT_NAME} PUBLIC
+    mola_ct_lio_matching
+    mola::mola_kernel
+    mola::mola_yaml
+  )
+else()
+  message(STATUS "mola_kernel or mola_yaml not found: skipping the MOLA front end")
 endif()
 
 # ------------------------------------------------------------------------------
@@ -101,6 +131,16 @@ if(ament_cmake_FOUND)
   endif()
 
   install(DIRECTORY core/include/ DESTINATION include)
+  if(MOLA_CT_LIO_HAS_FRONTEND)
+    install(TARGETS ${PROJECT_NAME}
+      ARCHIVE DESTINATION lib
+      LIBRARY DESTINATION lib
+      RUNTIME DESTINATION bin
+    )
+    install(DIRECTORY module/include/ DESTINATION include)
+    install(DIRECTORY pipelines mola-cli-launchs DESTINATION share/${PROJECT_NAME})
+  endif()
+
   if(MOLA_CT_LIO_HAS_MODULE)
     install(TARGETS mola_ct_lio_matching
       ARCHIVE DESTINATION lib

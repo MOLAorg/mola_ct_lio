@@ -1,0 +1,127 @@
+/*               _
+ _ __ ___   ___ | | __ _
+| '_ ` _ \ / _ \| |/ _` | Modular Optimization framework for
+| | | | | | (_) | | (_| | Localization and mApping (MOLA)
+|_| |_| |_|\___/|_|\__,_| https://github.com/MOLAorg/mola
+
+ Copyright (C) 2026, Jose Luis Blanco-Claraco
+ SPDX-License-Identifier: GPL-3.0
+ See LICENSE for full license information.
+*/
+
+/**
+ * @file   CtLidarInertialOdometry.h
+ * @brief  MOLA front end: continuous-time LiDAR-inertial odometry
+ */
+#pragma once
+
+#include <mola_imu_preintegration/ImuInitialCalibrator.h>
+#include <mola_imu_preintegration/ImuTransformer.h>
+#include <mola_kernel/interfaces/FrontEndBase.h>
+#include <mola_kernel/interfaces/LocalizationSourceBase.h>
+#include <mola_kernel/interfaces/MapSourceBase.h>
+#include <mrpt/poses/CPose3D.h>
+#include <mrpt/poses/CPose3DInterpolator.h>
+
+#include <memory>
+#include <mutex>
+#include <regex>
+#include <string>
+
+namespace mola
+{
+class CtOdometryEngine;
+
+/** Continuous-time LiDAR-inertial odometry.
+ *
+ * The trajectory is a sliding window of control knots rather than one pose per
+ * scan: each sweep is cut into segments, every point is registered at its own
+ * timestamp, and the knots are optimized jointly with preintegrated IMU
+ * factors between them.
+ *
+ * Two consequences are worth knowing before reading a trajectory it produced:
+ *
+ * - **Poses come out at the segment rate**, not the scan rate, so a given scan
+ *   may yield several or none.
+ * - **A pose is reported only once it leaves the window**, i.e. after it has
+ *   been refined by every segment that could see it and then marginalized. The
+ *   live trajectory therefore lags the newest scan by about one window.
+ *
+ * Everything is estimated in the **body frame**: the LiDAR extrinsic is
+ * applied to the points as they arrive rather than composed onto the result
+ * afterwards, because the IMU factors live in that frame and the two have to
+ * agree. The reported trajectory is `map -> base_link` directly.
+ *
+ * \ingroup mola_ct_lio_grp
+ */
+class CtLidarInertialOdometry : public FrontEndBase,
+                                public LocalizationSourceBase,
+                                public MapSourceBase
+{
+  DEFINE_MRPT_OBJECT(CtLidarInertialOdometry, mola)
+
+public:
+  CtLidarInertialOdometry();
+  ~CtLidarInertialOdometry() override;
+
+  // ExecutableBase
+  void spinOnce() override;
+  void onQuit() override;
+
+  // RawDataConsumer
+  void onNewObservation(const mrpt::obs::CObservation::ConstPtr & o) override;
+
+  /** Flushes the sliding window, emitting the knots still inside it. Without
+   * this the trajectory is missing its last window. Idempotent.
+   */
+  void finish();
+
+  /** Trajectory accumulated so far (`map` -> `base_link`). */
+  [[nodiscard]] mrpt::poses::CPose3DInterpolator estimatedTrajectory() const;
+
+  [[nodiscard]] std::size_t scansProcessed() const { return scans_processed_; }
+  [[nodiscard]] std::size_t posesEmitted() const;
+
+protected:
+  void initialize_frontend(const Yaml & cfg) override;
+
+private:
+  void onLidar(const mrpt::obs::CObservation::ConstPtr & o);
+  void onImu(const mrpt::obs::CObservation::ConstPtr & o);
+  void publishPose(double t, const mrpt::poses::CPose3D & pose);
+  void publishMap(const mrpt::Clock::time_point & timestamp);
+
+  std::unique_ptr<CtOdometryEngine> engine_;
+
+  std::regex lidar_sensor_label_regex_{"lidar"};
+  std::regex imu_sensor_label_regex_{"imu"};
+
+  std::string lidar_sensor_label = "lidar";
+  std::string imu_sensor_label = "imu";
+
+  /// Pose of the LiDAR in the body frame ("x y z yaw_deg pitch_deg roll_deg").
+  std::string baselink2lidar_pose_str = "0 0 0 0 0 0";
+
+  /// Used only when a sweep carries no usable per-point time field. [s]
+  double fallback_scan_period = 0.1;
+
+  /// Publish the map layer to subscribers at most this often. [s]
+  double map_publish_period = 0.5;
+
+  mrpt::poses::CPose3D lidar_pose_in_baselink_;
+
+  mola::imu::ImuInitialCalibrator imu_calibrator_;
+  mola::imu::ImuTransformer imu_transformer_;
+  bool imu_initialized_ = false;
+  bool warned_no_imu_ = false;
+
+  std::size_t scans_processed_ = 0;
+  double last_map_publish_ = 0;
+
+  mutable std::mutex trajectory_mtx_;
+  mrpt::poses::CPose3DInterpolator trajectory_;
+
+  bool finished_ = false;
+};
+
+}  // namespace mola
