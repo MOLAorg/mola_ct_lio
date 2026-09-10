@@ -40,7 +40,15 @@ kernel_scale: ${CTLIO_KERNEL_SCALE|0.5}
 # --- inertial ---
 use_imu: ${CTLIO_USE_IMU|true}
 gyro_noise_density: ${CTLIO_GYRO_SIGMA|1.7e-4}
-accel_noise_density: ${CTLIO_ACCEL_SIGMA|2.0e-3}
+# The accelerometer weight is an EFFECTIVE one, not the datasheet figure.
+# At the sensor's nominal 2e-3 the inertial factors carry some four orders of
+# magnitude more information than the whole LiDAR block, so the trajectory
+# follows the integrated IMU and the geometry cannot correct it. Measured on
+# observatory-quarter-01, APE against ground truth: 2e-3 -> 0.737 m,
+# 1e-2 -> 6.285 m, 5e-2 -> 0.039 m, 2e-1 -> 0.041 m. It is flat from 5e-2 on,
+# and 1e-2 is not a smooth interpolation between the two ends but a blow-up,
+# so do not read this axis as monotonic. See agents.md.
+accel_noise_density: ${CTLIO_ACCEL_SIGMA|5.0e-2}
 bias_sigma_acc: ${CTLIO_BIAS_SIGMA_ACC|1e-3}
 bias_sigma_gyro: ${CTLIO_BIAS_SIGMA_GYRO|1e-4}
 # Only used when use_imu is false, where it stands in for the inertial factors.

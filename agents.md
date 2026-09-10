@@ -65,7 +65,7 @@ table in sync when adding a parameter.
 | `use_imu` | `CTLIO_USE_IMU` | true | true/false | false is the LiDAR-only control arm |
 | `gravity` | `CTLIO_GRAVITY` | (0,0,-9.81) | | world frame must be gravity aligned |
 | `gyro_noise_density` | `CTLIO_GYRO_SIGMA` | 1.7e-4 | 1e-5 - 1e-3 | MOLA default; per-sensor in practice |
-| `accel_noise_density` | `CTLIO_ACCEL_SIGMA` | 2.0e-3 | 1e-4 - 1e-2 | |
+| `accel_noise_density` | `CTLIO_ACCEL_SIGMA` | **5.0e-2** | 2e-2 - 5e-1 | effective weight, not the datasheet figure; see the section above |
 | `bias_sigma_acc` | `CTLIO_BIAS_SIGMA_ACC` | 1e-3 | 1e-5 - 1e-2 | bias random walk density |
 | `bias_sigma_gyro` | `CTLIO_BIAS_SIGMA_GYRO` | 1e-4 | 1e-6 - 1e-3 | |
 | `imu_init_seconds` | `CTLIO_IMU_INIT_SEC` | 1.0 | 0.5 - 3.0 | static window for initial attitude and bias |
@@ -156,6 +156,46 @@ and the "bias" comes out at 5.9 deg/s, some 25x the true value. Hence
 `max_initial_gyro_bias` / `max_initial_accel_bias`: a measurement beyond a
 plausible magnitude is discarded and left to the estimator, which recovers the
 true bias within about 2 seconds either way.
+
+## The LiDAR/IMU weighting, and why the default is not the datasheet figure
+
+This is the single largest effect measured so far, and it is a balance
+problem rather than a bug in either term.
+
+The inertial factors are whitened by a genuine noise covariance. The LiDAR
+block is not: GICP's `cov_inv` is a surface-shape matrix built from local
+point scatter, and its absolute scale has no particular relation to a
+measurement noise. At the accelerometer's nominal `2e-3`, an IMU factor over a
+40 ms knot pair carries roughly `1e10` of position information against the
+whole LiDAR block's `1e5`-ish, so the trajectory follows the integrated IMU
+and the geometry cannot pull it back. What it looks like from outside is not a
+failure: inliers and chi2 stay flat while the trajectory quietly under-travels.
+
+Measured on observatory-quarter-01, APE against ground truth:
+
+| `accel_noise_density` | APE rmse | path ratio |
+|---|---|---|
+| 2e-3 (datasheet) | 0.737 m | 0.970 |
+| 1e-2 | **6.285 m** | 2.637 |
+| **5e-2 (default)** | **0.039 m** | **1.003** |
+| 2e-1 | 0.041 m | - |
+
+For reference on the same window, the same code with `use_imu: false` scores
+0.054 m but with a path ratio of **1.78**, i.e. it is accurate on average and
+jittery by 2-3 cm per knot. The inertial arm at 5e-2 is better on both counts,
+which is what the coupling is supposed to buy.
+
+**Do not read this axis as monotonic.** 1e-2 is not between its neighbors, it
+is a blow-up, so a sweep of it needs the intermediate points rather than the
+ends.
+
+The proper fix is to make the two blocks commensurate instead of tuning one
+against the other. `mp2p_icp` already has the machinery: `Solver_GaussNewton`
+carries a Birge-ratio auto-balance of the cov2cov block against its prior, for
+exactly this reason. Adopting that here would replace this parameter. Until
+then, treat 5e-2 as an effective weight that absorbs scale factor,
+misalignment, carrier vibration and the units mismatch, not as a claim about
+the sensor.
 
 ## What the system test establishes
 
