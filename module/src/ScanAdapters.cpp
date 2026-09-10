@@ -43,6 +43,8 @@ const char * toString(ScanTimeSource s)
       return "per-point absolute";
     case ScanTimeSource::AzimuthAfterUnusableField:
       return "azimuth (time field present but unusable)";
+    case ScanTimeSource::SingleInstant:
+      return "single instant (cloud already deskewed by the provider)";
     case ScanTimeSource::AzimuthFallback:
     default:
       return "azimuth (no time field)";
@@ -51,7 +53,7 @@ const char * toString(ScanTimeSource s)
 
 std::vector<CtOdometryEngine::TimedPoint> toTimedPoints(
   const mrpt::obs::CObservationPointCloud & obs, const mrpt::poses::CPose3D & sensorPoseInBody,
-  double fallbackScanPeriod, ScanTimeSource & timeSource)
+  double fallbackScanPeriod, bool alreadyDeskewed, ScanTimeSource & timeSource)
 {
   std::vector<CtOdometryEngine::TimedPoint> out;
   timeSource = ScanTimeSource::AzimuthFallback;
@@ -75,6 +77,12 @@ std::vector<CtOdometryEngine::TimedPoint> toTimedPoints(
   const double obsTime = mrpt::Clock::toDouble(obs.timestamp);
 
   bool usableTimes = ts && ts->size() == n;
+  if (alreadyDeskewed) {
+    // The geometry already belongs to one instant, so the time field is only a
+    // record of when each return was originally captured.
+    usableTimes = false;
+    timeSource = ScanTimeSource::SingleInstant;
+  }
   float tMin = 0;
   float tMax = 0;
   double tBegin = obsTime - fallbackScanPeriod;
@@ -124,6 +132,8 @@ std::vector<CtOdometryEngine::TimedPoint> toTimedPoints(
 
     if (usableTimes) {
       p.t = tBegin + (static_cast<double>((*ts)[i]) - static_cast<double>(tMin));
+    } else if (alreadyDeskewed) {
+      p.t = obsTime;
     } else {
       const double azimuth = std::atan2(static_cast<double>(ys[i]), static_cast<double>(xs[i]));
       const double azimuth01 = (azimuth + M_PI) / (2.0 * M_PI);

@@ -100,11 +100,23 @@ private:
   std::string lidar_sensor_label = "lidar";
   std::string imu_sensor_label = "imu";
 
-  /// Pose of the LiDAR in the body frame ("x y z yaw_deg pitch_deg roll_deg").
+  /// Extra transform composed on top of the observation's own sensor pose,
+  /// as "x y z yaw_deg pitch_deg roll_deg". It carries the whole extrinsic
+  /// only for datasets whose reader cannot supply one.
   std::string baselink2lidar_pose_str = "0 0 0 0 0 0";
+
+  /// Whether to take the LiDAR extrinsic from the observation, which is what
+  /// a dataset source fills in from /tf or from its fixed-pose configuration.
+  bool use_observation_sensor_pose = true;
 
   /// Used only when a sweep carries no usable per-point time field. [s]
   double fallback_scan_period = 0.1;
+
+  /// Set for datasets whose provider already motion-compensated the clouds.
+  /// See toTimedPoints(): such a cloud usually keeps its per-point time field,
+  /// so the times look usable while the geometry is already corrected, and
+  /// deskewing it again would double the correction.
+  bool clouds_already_deskewed = false;
 
   /// Publish the map layer to subscribers at most this often. [s]
   double map_publish_period = 0.5;

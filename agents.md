@@ -249,6 +249,22 @@ cannot currently be mapped back to `alpha`. Using it needs a small upstream
 ## Dataset gotchas carried over from the wrapper work
 
 - GrandTour rigs use `base`, not `base_link`: export `MOLA_TF_BASE_LINK=base`.
+- **GrandTour Hesai clouds are already motion compensated by the provider.**
+  The only topic published is `/boxi/hesai/points_undistorted`, and it still
+  carries a per-point time field, so the times look perfectly usable while the
+  geometry has already been corrected. Deskewing again would apply the
+  correction twice. Hence `clouds_already_deskewed: true` in that pipeline,
+  which reads each scan as a single-instant observation, with the knot spacing
+  set to the scan period so one scan constrains one knot. It costs this method
+  its continuous-time advantage on that dataset; that is a property of the
+  data, not a choice. A raw distorted bag would restore it, and none is
+  published.
+- The LiDAR extrinsic comes from the observation's own sensor pose, which the
+  dataset source fills from `/tf` or from its fixed-pose configuration;
+  `baselink2lidar_pose_str` is an *extra* transform composed on top of it. A
+  bag with `/tf` (GrandTour) needs the parameter at identity; a bag without one
+  (Oxford Spires) supplies identity and the parameter carries the whole
+  extrinsic.
 - KITTI carries no per-point timestamps at all, so every KITTI number is a
   no-deskew number and the continuous-time part degenerates to the azimuth
   fallback there.

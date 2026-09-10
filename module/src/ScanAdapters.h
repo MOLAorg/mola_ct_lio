@@ -30,7 +30,8 @@ enum class ScanTimeSource : uint8_t
   PerPointRelative,
   PerPointAbsolute,
   AzimuthFallback,
-  AzimuthAfterUnusableField
+  AzimuthAfterUnusableField,
+  SingleInstant
 };
 
 [[nodiscard]] const char * toString(ScanTimeSource s);
@@ -66,9 +67,22 @@ enum class ScanTimeSource : uint8_t
  * @param sensorPoseInBody The LiDAR's pose in the body frame. Points are
  *        returned already in the body frame, because that is the frame the
  *        IMU factors live in and everything has to agree on one.
+ *
+ * @param alreadyDeskewed Set when the provider has already motion-compensated
+ *        the cloud onto a single instant. Every point is then given the
+ *        observation's own timestamp, whatever the time field says.
+ *
+ *        This matters more here than anywhere else in the suite. A
+ *        provider-deskewed cloud usually *keeps* its per-point time field, so
+ *        the times look perfectly usable while the geometry has already been
+ *        corrected; placing each point at its own pose would then apply the
+ *        correction a second time. The scan is a single-instant observation
+ *        and has to be treated as one, which costs this method its
+ *        continuous-time advantage on such a dataset but is the only correct
+ *        reading of the data.
  */
 [[nodiscard]] std::vector<CtOdometryEngine::TimedPoint> toTimedPoints(
   const mrpt::obs::CObservationPointCloud & obs, const mrpt::poses::CPose3D & sensorPoseInBody,
-  double fallbackScanPeriod, ScanTimeSource & timeSource);
+  double fallbackScanPeriod, bool alreadyDeskewed, ScanTimeSource & timeSource);
 
 }  // namespace mola

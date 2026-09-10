@@ -99,6 +99,8 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
   YAML_LOAD_OPT(map_publish_period, double);
   YAML_LOAD_OPT(max_initial_gyro_bias, double);
   YAML_LOAD_OPT(max_initial_accel_bias, double);
+  YAML_LOAD_OPT(use_observation_sensor_pose, bool);
+  YAML_LOAD_OPT(clouds_already_deskewed, bool);
 
   lidar_sensor_label_regex_ = std::regex(lidar_sensor_label);
   imu_sensor_label_regex_ = std::regex(imu_sensor_label);
@@ -303,8 +305,28 @@ void CtLidarInertialOdometry::onLidar(const mrpt::obs::CObservation::ConstPtr & 
     return;
   }
 
+  // The dataset source fills in the sensor pose, from /tf or from a fixed
+  // configuration, and that is by definition the LiDAR in the body frame. The
+  // YAML parameter is an *extra* transform composed on top of it, for the
+  // datasets that cannot supply one: with a bag carrying /tf the parameter
+  // stays at identity, and with a bag that has none the reader supplies
+  // identity and the parameter carries the whole extrinsic. Getting this wrong
+  // leaves the points in one frame and the inertial factors in another, which
+  // does not fail, it just degrades the trajectory.
+  mrpt::poses::CPose3D sensorInBody = lidar_pose_in_baselink_;
+  if (use_observation_sensor_pose) {
+    sensorInBody = lidar_pose_in_baselink_ + pc->sensorPose;
+  }
+
+  if (scans_processed_ == 0) {
+    MRPT_LOG_INFO_STREAM(
+      "LiDAR pose in the body frame: " << sensorInBody << " (observation says " << pc->sensorPose
+                                       << ", parameter adds " << lidar_pose_in_baselink_ << ")");
+  }
+
   ScanTimeSource timeSource = ScanTimeSource::AzimuthFallback;
-  auto points = toTimedPoints(*pc, lidar_pose_in_baselink_, fallback_scan_period, timeSource);
+  auto points =
+    toTimedPoints(*pc, sensorInBody, fallback_scan_period, clouds_already_deskewed, timeSource);
   if (points.empty()) {
     MRPT_LOG_DEBUG("Ignoring a scan that converted to no points");
     return;

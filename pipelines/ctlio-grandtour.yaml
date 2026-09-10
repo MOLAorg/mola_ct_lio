@@ -12,21 +12,34 @@
 lidar_sensor_label: "lidar"
 imu_sensor_label: "imu"
 
+# IMPORTANT: the only Hesai topic these bags carry is
+# `/boxi/hesai/points_undistorted`, i.e. the provider has ALREADY motion
+# compensated the cloud onto a single instant. It nonetheless keeps its
+# per-point time field, so the times look perfectly usable while the geometry
+# is already corrected, and placing each point at its own pose would apply the
+# correction a second time.
+#
+# So the scans are read as single-instant observations, and the knot spacing is
+# set to the scan period rather than a fraction of it: each scan then
+# constrains exactly one knot. This costs the method its continuous-time
+# advantage on this dataset, but it is the only correct reading of the data.
+# A raw, distorted Hesai bag would restore it; none is published here.
+clouds_already_deskewed: ${CTLIO_ALREADY_DESKEWED|true}
+
 # The bag carries /tf, so the extrinsic is resolved there and this stays at
 # identity. Points are moved into the body frame on arrival, because that is
 # the frame the inertial factors live in, so the reported trajectory is
 # `map -> base_link` directly.
 baselink2lidar_pose_str: "${CTLIO_BASELINK2LIDAR|0 0 0 0 0 0}"
 
-# Only used if a sweep arrives with no usable per-point time field. This
-# dataset's does carry one; the module logs which path it took on the first
-# scan, at INFO.
+# Not used here: the scans are read as single-instant observations, see above.
+# The module logs which timing path it actually took, at INFO, on the first scan.
 fallback_scan_period: 0.1
 
 # --- trajectory ---
 # 40 ms knots against a 100 ms sweep means 2.5 segments per scan, which is what
 # makes this continuous-time rather than scan-to-map.
-segment_interval: ${CTLIO_SEG_INTERVAL|0.04}
+segment_interval: ${CTLIO_SEG_INTERVAL|0.1}
 knot_count: ${CTLIO_KNOT_COUNT|4}
 
 # --- solver ---
