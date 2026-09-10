@@ -23,6 +23,7 @@
 #include <mrpt/poses/CPose3D.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
 
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <regex>
@@ -108,6 +109,12 @@ private:
   /// Publish the map layer to subscribers at most this often. [s]
   double map_publish_period = 0.5;
 
+  /// Largest initial bias that will be believed, beyond which the measurement
+  /// is taken to be platform motion rather than a bias and is discarded.
+  /// [rad/s] and [m/s^2].
+  double max_initial_gyro_bias = 0.02;
+  double max_initial_accel_bias = 0.5;
+
   mrpt::poses::CPose3D lidar_pose_in_baselink_;
 
   mola::imu::ImuInitialCalibrator imu_calibrator_;
@@ -116,12 +123,18 @@ private:
   bool warned_no_imu_ = false;
 
   std::size_t scans_processed_ = 0;
+  std::size_t observations_seen_ = 0;
+  bool warned_no_scans_ = false;
   double last_map_publish_ = 0;
 
   mutable std::mutex trajectory_mtx_;
   mrpt::poses::CPose3DInterpolator trajectory_;
 
   bool finished_ = false;
+
+  /// Optional diagnostic streams, see openDumpStream() in the .cpp.
+  std::unique_ptr<std::ofstream> imu_dump_;
+  std::unique_ptr<std::ofstream> state_dump_;
 };
 
 }  // namespace mola

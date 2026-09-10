@@ -16,10 +16,14 @@
 #include <mola_ct_lio/CtLidarInertialOdometry.h>
 #include <mola_yaml/yaml_helpers.h>
 #include <mrpt/containers/yaml.h>
+#include <mrpt/core/format.h>
 #include <mrpt/core/lock_helper.h>
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/poses/Lie/SO.h>
+
+#include <cstdlib>
+#include <fstream>
 
 #include "CtOdometryEngine.h"
 #include "ScanAdapters.h"
@@ -30,6 +34,28 @@ namespace mola
 {
 namespace
 {
+/// How many observations may go by with no scan before it is worth saying so.
+constexpr std::size_t kObservationsBeforeComplaining = 2000;
+
+/** Opens a diagnostic stream named by an environment variable, or returns
+ * null. These exist so that the inertial path can be checked against a
+ * ground-truth trajectory instead of assumed correct: a wrong extrinsic or a
+ * wrong frame convention does not fail, it just degrades the result.
+ */
+std::unique_ptr<std::ofstream> openDumpStream(const char * envVar, const char * header)
+{
+  const char * path = ::getenv(envVar);
+  if (!path) {
+    return {};
+  }
+  auto f = std::make_unique<std::ofstream>(path);
+  if (!f->is_open()) {
+    return {};
+  }
+  *f << header << "\n";
+  return f;
+}
+
 mrpt::poses::CPose3D toMrptPose(const ct::SE3 & p)
 {
   mrpt::math::CMatrixDouble33 R;
@@ -71,6 +97,8 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
   YAML_LOAD_OPT(baselink2lidar_pose_str, std::string);
   YAML_LOAD_OPT(fallback_scan_period, double);
   YAML_LOAD_OPT(map_publish_period, double);
+  YAML_LOAD_OPT(max_initial_gyro_bias, double);
+  YAML_LOAD_OPT(max_initial_accel_bias, double);
 
   lidar_sensor_label_regex_ = std::regex(lidar_sensor_label);
   imu_sensor_label_regex_ = std::regex(imu_sensor_label);
@@ -92,7 +120,19 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
                                      << " use_imu=" << engine_->params.optimizer.useImu
                                      << " lidar_pose_in_baselink=" << lidar_pose_in_baselink_);
 
-  engine_->onPose = [this](double t, const ct::SE3 & pose, const CtOdometryEngine::Diagnostics &) {
+  imu_dump_ = openDumpStream("MOLA_CTLIO_DUMP_IMU", "# t wx wy wz ax ay az  (body frame)");
+  state_dump_ = openDumpStream(
+    "MOLA_CTLIO_DUMP_STATE", "# t x y z vx vy vz bax bay baz bgx bgy bgz inliers chi2");
+
+  engine_->onPose = [this](
+                      double t, const ct::SE3 & pose, const CtOdometryEngine::Diagnostics & d) {
+    if (state_dump_) {
+      *state_dump_ << mrpt::format(
+        "%.6f %.4f %.4f %.4f %.4f %.4f %.4f %.6f %.6f %.6f %.6f %.6f %.6f %zu %.4e\n", t,
+        pose.t.x(), pose.t.y(), pose.t.z(), d.velocity.x(), d.velocity.y(), d.velocity.z(),
+        d.biasAcc.x(), d.biasAcc.y(), d.biasAcc.z(), d.biasGyro.x(), d.biasGyro.y(), d.biasGyro.z(),
+        d.inliers, d.chi2);
+    }
     publishPose(t, toMrptPose(pose));
   };
 
@@ -103,6 +143,25 @@ void CtLidarInertialOdometry::onNewObservation(const mrpt::obs::CObservation::Co
 {
   if (!o) {
     return;
+  }
+
+  observations_seen_++;
+
+  // A dataset whose LiDAR observations never arrive looks exactly like one
+  // that is simply quiet, and the run then ends with an empty trajectory and
+  // no reason given. The usual cause is a bag with no /tf, where the reader
+  // drops every cloud it cannot resolve a sensor pose for.
+  if (
+    scans_processed_ == 0 && observations_seen_ > kObservationsBeforeComplaining &&
+    !warned_no_scans_) {
+    warned_no_scans_ = true;
+    MRPT_LOG_WARN_STREAM(
+      "Seen " << observations_seen_
+              << " observations and not one LiDAR scan. Check that the sensor label matches '"
+              << lidar_sensor_label
+              << "', and that the dataset source can resolve a pose for the cloud: a bag with "
+                 "no /tf needs a fixed sensor pose to be configured, or every scan is dropped "
+                 "before it gets here.");
   }
 
   if (std::regex_match(o->sensorLabel, imu_sensor_label_regex_)) {
@@ -144,6 +203,12 @@ void CtLidarInertialOdometry::onImu(const mrpt::obs::CObservation::ConstPtr & o)
   const ct::Vec3 gyro(
     inBody.get(mrpt::obs::IMU_WX), inBody.get(mrpt::obs::IMU_WY), inBody.get(mrpt::obs::IMU_WZ));
 
+  if (imu_dump_) {
+    *imu_dump_ << mrpt::format(
+      "%.6f %.6f %.6f %.6f %.6f %.6f %.6f\n", t, gyro.x(), gyro.y(), gyro.z(), acc.x(), acc.y(),
+      acc.z());
+  }
+
   if (!imu_initialized_) {
     imu_calibrator_.add(std::dynamic_pointer_cast<const mrpt::obs::CObservationIMU>(
       mrpt::obs::CObservationIMU::Create(inBody)));
@@ -168,16 +233,50 @@ void CtLidarInertialOdometry::onImu(const mrpt::obs::CObservation::ConstPtr & o)
       }
     }
 
-    engine_->setInitialState(
-      pose,
-      ct::Vec3(calibration->bias_acc_b.x, calibration->bias_acc_b.y, calibration->bias_acc_b.z),
-      ct::Vec3(calibration->bias_gyro.x, calibration->bias_gyro.y, calibration->bias_gyro.z));
+    // A bias is only a bias if the platform was still while it was measured,
+    // and the readiness gate cannot tell that on its own: it accepts on the
+    // steadiness of the accelerometer direction, which a platform turning
+    // about the gravity axis satisfies perfectly while the gyroscope reads its
+    // rotation. Averaged over such a window the "bias" is the motion, and
+    // seeding it is worse than seeding nothing, because the random walk
+    // between knots is deliberately tight and a wrong seed takes far longer to
+    // walk off than a sequence lasts.
+    //
+    // What does separate the two is magnitude: a real MEMS bias is small, so a
+    // measured one beyond a plausible bound is rejected outright.
+    const auto readiness = imu_calibrator_.readiness();
+
+    const ct::Vec3 measuredBiasAcc(
+      calibration->bias_acc_b.x, calibration->bias_acc_b.y, calibration->bias_acc_b.z);
+    const ct::Vec3 measuredBiasGyro(
+      calibration->bias_gyro.x, calibration->bias_gyro.y, calibration->bias_gyro.z);
+
+    const bool gyroPlausible =
+      !readiness.timed_out && measuredBiasGyro.norm() <= max_initial_gyro_bias;
+    const bool accelPlausible =
+      !readiness.timed_out && measuredBiasAcc.norm() <= max_initial_accel_bias;
+
+    const ct::Vec3 biasGyro = gyroPlausible ? measuredBiasGyro : ct::Vec3::Zero();
+    const ct::Vec3 biasAcc = accelPlausible ? measuredBiasAcc : ct::Vec3::Zero();
+
+    engine_->setInitialState(pose, biasAcc, biasGyro);
 
     imu_initialized_ = true;
     MRPT_LOG_INFO_STREAM(
       "IMU initialized: pitch=" << mrpt::RAD2DEG(calibration->pitch)
                                 << " deg roll=" << mrpt::RAD2DEG(calibration->roll)
-                                << " deg bias_gyro=" << calibration->bias_gyro.asString());
+                                << " deg measured bias_gyro=" << calibration->bias_gyro.asString()
+                                << " dispersion="
+                                << (readiness.dispersion ? *readiness.dispersion : -1.0) << " rad");
+    if (!gyroPlausible || !accelPlausible) {
+      MRPT_LOG_WARN_STREAM(
+        "Rejecting the measured IMU bias as implausible (gyro "
+        << measuredBiasGyro.norm() << " rad/s against a bound of " << max_initial_gyro_bias
+        << ", accel " << measuredBiasAcc.norm() << " m/s2 against " << max_initial_accel_bias
+        << "). The platform was most likely moving while the calibration ran, so this is its "
+           "motion rather than a bias. The attitude is kept and the biases are left to the "
+           "estimator.");
+    }
   }
 
   engine_->addImuSample(t, acc, gyro);
@@ -187,6 +286,9 @@ void CtLidarInertialOdometry::onLidar(const mrpt::obs::CObservation::ConstPtr & 
 {
   auto pc = std::dynamic_pointer_cast<const mrpt::obs::CObservationPointCloud>(o);
   if (!pc) {
+    MRPT_LOG_DEBUG_STREAM(
+      "Ignoring an observation matching the LiDAR label but not a point cloud, class="
+      << o->GetRuntimeClass()->className);
     return;
   }
 
@@ -204,6 +306,7 @@ void CtLidarInertialOdometry::onLidar(const mrpt::obs::CObservation::ConstPtr & 
   ScanTimeSource timeSource = ScanTimeSource::AzimuthFallback;
   auto points = toTimedPoints(*pc, lidar_pose_in_baselink_, fallback_scan_period, timeSource);
   if (points.empty()) {
+    MRPT_LOG_DEBUG("Ignoring a scan that converted to no points");
     return;
   }
 

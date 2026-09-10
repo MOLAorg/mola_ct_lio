@@ -1,0 +1,71 @@
+# -----------------------------------------------------------------------------
+# Continuous-time LiDAR-inertial odometry, GrandTour.
+#
+# Legged robot, Hesai at 10 Hz with a per-point time field, plus an IMU.
+#
+# The rig's base frame is called `base`, not `base_link`, so the bag readers
+# need MOLA_TF_BASE_LINK=base or no scan will resolve a pose at all.
+#
+# Every knob here is listed with its sweep range in the repository's agents.md.
+# -----------------------------------------------------------------------------
+
+lidar_sensor_label: "lidar"
+imu_sensor_label: "imu"
+
+# The bag carries /tf, so the extrinsic is resolved there and this stays at
+# identity. Points are moved into the body frame on arrival, because that is
+# the frame the inertial factors live in, so the reported trajectory is
+# `map -> base_link` directly.
+baselink2lidar_pose_str: "${CTLIO_BASELINK2LIDAR|0 0 0 0 0 0}"
+
+# Only used if a sweep arrives with no usable per-point time field. This
+# dataset's does carry one; the module logs which path it took on the first
+# scan, at INFO.
+fallback_scan_period: 0.1
+
+# --- trajectory ---
+# 40 ms knots against a 100 ms sweep means 2.5 segments per scan, which is what
+# makes this continuous-time rather than scan-to-map.
+segment_interval: ${CTLIO_SEG_INTERVAL|0.04}
+knot_count: ${CTLIO_KNOT_COUNT|4}
+
+# --- solver ---
+max_iterations: ${CTLIO_MAX_ITERS|25}
+rematch_every: ${CTLIO_REMATCH_EVERY|2}
+convergence_threshold: ${CTLIO_CONVERGE_TH|0.001}
+lambda: ${CTLIO_LAMBDA|0.0}
+kernel: ${CTLIO_KERNEL|Cauchy}
+kernel_scale: ${CTLIO_KERNEL_SCALE|0.5}
+
+# --- inertial ---
+use_imu: ${CTLIO_USE_IMU|true}
+gyro_noise_density: ${CTLIO_GYRO_SIGMA|1.7e-4}
+accel_noise_density: ${CTLIO_ACCEL_SIGMA|2.0e-3}
+bias_sigma_acc: ${CTLIO_BIAS_SIGMA_ACC|1e-3}
+bias_sigma_gyro: ${CTLIO_BIAS_SIGMA_GYRO|1e-4}
+# Only used when use_imu is false, where it stands in for the inertial factors.
+twist_continuity_weight: ${CTLIO_TWIST_W|2.0}
+
+# --- points ---
+# The legged carrier puts its own body in the near field, which acts as a
+# false zero-motion constraint if it is kept.
+min_range: ${CTLIO_MIN_RANGE|1.0}
+max_range: ${CTLIO_MAX_RANGE|100.0}
+source_voxel_size: ${CTLIO_DS_SIZE|0.4}
+map_voxel_size: ${CTLIO_VOXEL_SIZE|0.4}
+
+# --- map ---
+map_radius: ${CTLIO_MAP_RADIUS|120.0}
+k_correspondences_for_cov: ${CTLIO_K_COV|20}
+min_correspondences_for_cov: ${CTLIO_MIN_K_COV|5}
+max_distance_for_cov: ${CTLIO_MAX_DIST_COV|1.0}
+max_plane_deviation_for_cov: ${CTLIO_PLANE_DEV_COV|0.0}
+
+# --- matcher ---
+match_threshold: ${CTLIO_MATCH_TH|0.4}
+match_threshold_far: ${CTLIO_MATCH_TH_FAR|0.0}
+match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
+match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}
+
+# --- output ---
+map_publish_period: 0.5

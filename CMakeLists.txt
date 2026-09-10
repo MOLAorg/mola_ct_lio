@@ -98,6 +98,48 @@ else()
 endif()
 
 # ------------------------------------------------------------------------------
+# Offline CLI.
+# ------------------------------------------------------------------------------
+if(MOLA_CT_LIO_HAS_FRONTEND)
+  find_package(mrpt-tclap QUIET)
+
+  if(mrpt-tclap_FOUND)
+    find_package(mola_input_mulran_dataset QUIET)
+    find_package(mola_input_rawlog QUIET)
+    find_package(mola_input_rosbag2 QUIET)
+    find_package(mola_input_rosbag1 QUIET)
+    find_package(mola_input_kitti_dataset QUIET)
+
+    add_executable(mola-ct-lio-cli apps/mola-ct-lio-cli.cpp)
+    target_link_libraries(mola-ct-lio-cli
+      ${PROJECT_NAME}
+      mrpt::maps
+      mrpt::tclap
+    )
+
+    foreach(pkg_def IN ITEMS
+        "mola_input_mulran_dataset:HAVE_MOLA_INPUT_MULRAN"
+        "mola_input_rawlog:HAVE_MOLA_INPUT_RAWLOG"
+        "mola_input_rosbag2:HAVE_MOLA_INPUT_ROSBAG2"
+        "mola_input_rosbag1:HAVE_MOLA_INPUT_ROSBAG1"
+        "mola_input_kitti_dataset:HAVE_MOLA_INPUT_KITTI")
+      string(REPLACE ":" ";" parts ${pkg_def})
+      list(GET parts 0 pkg)
+      list(GET parts 1 def)
+      if(${pkg}_FOUND)
+        message(STATUS "mola-ct-lio-cli: with ${pkg} = YES")
+        target_link_libraries(mola-ct-lio-cli mola::${pkg})
+        target_compile_definitions(mola-ct-lio-cli PRIVATE ${def})
+      else()
+        message(STATUS "mola-ct-lio-cli: with ${pkg} = NO")
+      endif()
+    endforeach()
+
+    install(TARGETS mola-ct-lio-cli RUNTIME DESTINATION lib/${PROJECT_NAME})
+  endif()
+endif()
+
+# ------------------------------------------------------------------------------
 # Tests
 # ------------------------------------------------------------------------------
 find_package(ament_cmake QUIET)

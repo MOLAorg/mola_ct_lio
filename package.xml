@@ -19,6 +19,17 @@
   <depend>mp2p_icp_map</depend>
   <depend>mrpt_libmaps</depend>
   <depend>mrpt_libobs</depend>
+  <depend>mrpt_libtclap</depend>
+
+  <!-- optional dataset sources for the offline CLI -->
+  <depend>mola_input_rosbag2</depend>
+  <depend>mola_input_rosbag1</depend>
+  <depend>mola_input_rawlog</depend>
+  <depend>mola_input_kitti_dataset</depend>
+  <depend>mola_input_mulran_dataset</depend>
+
+  <exec_depend>mola_launcher</exec_depend>
+  <exec_depend>mola_viz</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
 

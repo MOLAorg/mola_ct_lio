@@ -69,6 +69,8 @@ table in sync when adding a parameter.
 | `bias_sigma_acc` | `CTLIO_BIAS_SIGMA_ACC` | 1e-3 | 1e-5 - 1e-2 | bias random walk density |
 | `bias_sigma_gyro` | `CTLIO_BIAS_SIGMA_GYRO` | 1e-4 | 1e-6 - 1e-3 | |
 | `imu_init_seconds` | `CTLIO_IMU_INIT_SEC` | 1.0 | 0.5 - 3.0 | static window for initial attitude and bias |
+| `max_initial_gyro_bias` | - | 0.02 rad/s | 0.005 - 0.05 | measured seeds beyond this are discarded as platform motion |
+| `max_initial_accel_bias` | - | 0.5 m/s^2 | 0.1 - 1.0 | same, for the accelerometer |
 
 ### Point preprocessing
 
@@ -109,6 +111,51 @@ table in sync when adding a parameter.
 | `baselink2lidar_pose_str` | `CTLIO_BASELINK2LIDAR` | Oxford Spires needs `0 0 0.124 180 0 0`. Getting this wrong costs almost nothing in APE and everything in RPE, so check RPE when changing it |
 | `baselink2imu_pose_str` | `CTLIO_BASELINK2IMU` | |
 | `fallback_scan_period` | `CTLIO_FALLBACK_PERIOD` | 0.1 s; used only when the scan carries no usable per-point time field |
+
+## Running on Oxford Spires, and what was verified against ground truth
+
+```bash
+SEQ=/mnt/datasets/public/oxford-spires/2024-03-13-observatory-quarter-01
+BAG=$SEQ/raw/ros2bag/1710338090_2024-03-13-13-54-51
+
+# The bag carries no /tf, so BOTH fixed-pose flags are required. Without the
+# LiDAR one every cloud is dropped before it reaches the module and the run
+# ends with an empty trajectory.
+export MOLA_USE_FIXED_LIDAR_POSE=true
+export LIDAR_POSE_X=0 LIDAR_POSE_Y=0 LIDAR_POSE_Z=0
+export LIDAR_POSE_YAW=0 LIDAR_POSE_PITCH=0 LIDAR_POSE_ROLL=0
+
+# T_base_imu, i.e. the IMU in the BODY frame, not in the LiDAR frame. It is
+# T_base_lidar * T_lidar_imu, where the other wrappers in the suite quote
+# T_lidar_imu = 0.018771 -0.008218 -0.070474 -90.6263 -0.1665 -0.1287.
+export MOLA_USE_FIXED_IMU_POSE=true
+export IMU_POSE_X=-0.018771 IMU_POSE_Y=0.008218 IMU_POSE_Z=0.053526
+export IMU_POSE_YAW=89.3737 IMU_POSE_PITCH=-0.1665 IMU_POSE_ROLL=-0.1287
+
+mola-ct-lio-cli -c pipelines/ctlio-oxford-spires.yaml \
+  --input-rosbag2 "$BAG" --lidar-topic /hesai/pandar \
+  --imu-topic /alphasense_driver_ros/imu --output-tum-path /tmp/ctlio.tum
+```
+
+Two diagnostic dumps exist for checking the inertial path against ground truth
+rather than assuming it: `MOLA_CTLIO_DUMP_IMU=<file>` writes the IMU in the
+body frame (`t wx wy wz ax ay az`), and `MOLA_CTLIO_DUMP_STATE=<file>` writes
+each emitted knot (`t x y z vx vy vz ba bg inliers chi2`).
+
+**The body-frame conversion is verified**, not assumed: with the extrinsic
+above, the transformed gyroscope correlates with the ground-truth angular
+velocity at 0.99-1.00 on all three axes, with residual means below
+0.004 rad/s. Redo that check after touching the extrinsic or the transformer;
+a wrong frame does not fail, it just degrades the trajectory.
+
+**The initial bias measurement cannot be trusted on this dataset.** The
+calibration gate accepts on the steadiness of the accelerometer *direction*,
+which a platform yawing about gravity satisfies perfectly. On
+observatory-quarter-01 the rig is turning at 2.7-4.8 deg/s during the window,
+and the "bias" comes out at 5.9 deg/s, some 25x the true value. Hence
+`max_initial_gyro_bias` / `max_initial_accel_bias`: a measurement beyond a
+plausible magnitude is discarded and left to the estimator, which recovers the
+true bias within about 2 seconds either way.
 
 ## What the system test establishes
 
