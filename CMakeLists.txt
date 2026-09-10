@@ -26,6 +26,7 @@ add_library(mola_ct_lio_core
   core/src/CtNormalEquations.cpp
   core/src/ImuFactor.cpp
   core/src/WindowSystem.cpp
+  core/src/WindowOptimizer.cpp
 )
 target_include_directories(mola_ct_lio_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/include>
@@ -54,6 +55,9 @@ if(ament_cmake_FOUND)
 
     ament_add_gtest(test_window_system core/test/test_window_system.cpp)
     target_link_libraries(test_window_system mola_ct_lio_core)
+
+    ament_add_gtest(test_window_optimizer core/test/test_window_optimizer.cpp)
+    target_link_libraries(test_window_optimizer mola_ct_lio_core)
   endif()
 
   install(DIRECTORY core/include/ DESTINATION include)
