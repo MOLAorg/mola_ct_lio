@@ -34,6 +34,8 @@ max_iterations: ${CTLIO_MAX_ITERS|25}
 rematch_every: ${CTLIO_REMATCH_EVERY|2}
 convergence_threshold: ${CTLIO_CONVERGE_TH|0.001}
 lambda: ${CTLIO_LAMBDA|0.0}
+relinearize_each_slide: ${CTLIO_RELIN|false}
+max_step_translation: ${CTLIO_MAX_STEP|1.0}
 kernel: ${CTLIO_KERNEL|Cauchy}
 kernel_scale: ${CTLIO_KERNEL_SCALE|0.5}
 

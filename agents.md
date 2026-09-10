@@ -48,6 +48,8 @@ table in sync when adding a parameter.
 | `max_iterations` | `CTLIO_MAX_ITERS` | 25 | 5 - 40 | |
 | `convergence_threshold` | `CTLIO_CONVERGE_TH` | 1e-3 m | 1e-4 - 1e-2 | on the largest knot translation step |
 | `lambda` | `CTLIO_LAMBDA` | 0.0 | 0 - 1e-3 | Levenberg damping as a fraction of the diagonal; 0 is plain Gauss-Newton |
+| `max_step_translation` | `CTLIO_MAX_STEP` | 1.0 m | 0.2 - 5.0 | trust region: a longer step is scaled down as a whole. 0 disables it |
+| `relinearize_each_slide` | `CTLIO_RELIN` | false | false / true | whether a knot's Jacobian point follows the estimate or is held from its first marginalization |
 | `twist_continuity_weight` | `CTLIO_TWIST_W` | 2.0 | 0 - 10 | LiDAR-only only; ignored once IMU factors are present |
 
 ### Residual weighting
@@ -186,8 +188,12 @@ are robustness, and both sit at the edges rather than in the middle:
 - Every sequence shows a cold start, the first emitted pose being 18x to 51x
   too fast.
 
-There is no divergence guard anywhere in the estimator. That is the first
-thing to add.
+The first round of fixes addressed the recursion itself rather than adding a
+symptom check on top of it. The prior used to be built from the system as it
+stood one step before the states it was declared to describe, and the Jacobian
+linearization point was recaptured on every slide, so each prior inherited
+Jacobians taken elsewhere. Both are now consistent, and `max_step_translation`
+gives Gauss-Newton the trust region it otherwise lacks.
 
 ## The LiDAR/IMU weighting, and why the default is not the datasheet figure
 

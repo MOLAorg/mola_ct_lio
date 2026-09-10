@@ -58,6 +58,14 @@ public:
     /// Continuous-time noise densities of the IMU, used to propagate the
     /// preintegration covariance.
     double gyroNoiseDensity = 1.7e-4;
+    /// Whether a knot's Jacobian linearization point is recaptured on every
+    /// slide, or held at where the knot first entered a marginalization.
+    /// Holding it is what keeps successive priors describing the same
+    /// quantity; recapturing keeps the Jacobians closer to the current
+    /// estimate. Which one wins is a property of the data, so it is a
+    /// parameter rather than a decision.
+    bool relinearizeEachSlide = false;
+
     double accelNoiseDensity = 2.0e-3;
 
     ct::WindowOptimizer::Params optimizer;

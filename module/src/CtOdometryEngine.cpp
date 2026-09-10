@@ -55,6 +55,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("max_range", params.maxRange);
   readDouble("gyro_noise_density", params.gyroNoiseDensity);
   readDouble("accel_noise_density", params.accelNoiseDensity);
+  readBool("relinearize_each_slide", params.relinearizeEachSlide);
 
   readInt("max_iterations", params.optimizer.maxIterations);
   readInt("rematch_every", params.optimizer.rematchEvery);
@@ -348,7 +349,7 @@ void CtOdometryEngine::slideWindow()
   // its whole life in the window; the prior's own anchor moves with each new
   // prior, since that is where its gradient was just evaluated.
   for (auto & k : knots_) {
-    if (!k.linearized) {
+    if (!k.linearized || params.relinearizeEachSlide) {
       k.linearized = true;
       k.linearizationPoint = k.state;
     }
