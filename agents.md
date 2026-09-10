@@ -110,6 +110,16 @@ table in sync when adding a parameter.
 | `baselink2imu_pose_str` | `CTLIO_BASELINK2IMU` | |
 | `fallback_scan_period` | `CTLIO_FALLBACK_PERIOD` | 0.1 s; used only when the scan carries no usable per-point time field |
 
+## Matching cost, measured
+
+`CtMapMatcher.TheEstimatorRecoversAPerturbedSegmentThroughRealMatching` runs
+20 iterations over one ~500-point segment in 205 ms, i.e. **~10 ms per
+iteration**, nearly all of it in building the local map's k-d tree and
+covariances. A three-segment window re-matching every iteration would
+therefore cost about 600 ms per 120 ms of data, which is why `rematch_every`
+exists. Re-measure this before tuning it on real data; the synthetic segment
+is smaller than an Oxford one.
+
 ## Two facts the matching layer depends on
 
 Both checked in `mola::IncrementalPointCloud`, both worth re-checking if that

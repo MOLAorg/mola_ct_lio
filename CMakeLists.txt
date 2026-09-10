@@ -15,6 +15,12 @@ endif()
 
 find_package(Eigen3 REQUIRED)
 
+# The module layer needs the MOLA/MRPT stack; the core above does not.
+find_package(mola_common QUIET)
+find_package(mola_metric_maps QUIET)
+find_package(mp2p_icp_map QUIET)
+find_package(mrpt-maps QUIET)
+
 # ------------------------------------------------------------------------------
 # The continuous-time estimator core.
 #
@@ -34,6 +40,29 @@ target_include_directories(mola_ct_lio_core PUBLIC
 )
 target_link_libraries(mola_ct_lio_core PUBLIC Eigen3::Eigen)
 set_target_properties(mola_ct_lio_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# ------------------------------------------------------------------------------
+# The matching layer: the local map and the correspondence queries.
+# ------------------------------------------------------------------------------
+set(MOLA_CT_LIO_HAS_MODULE FALSE)
+if(mola_metric_maps_FOUND AND mrpt-maps_FOUND)
+  set(MOLA_CT_LIO_HAS_MODULE TRUE)
+
+  add_library(mola_ct_lio_matching
+    module/src/CtMapMatcher.cpp
+  )
+  target_include_directories(mola_ct_lio_matching PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/module/src>
+  )
+  target_link_libraries(mola_ct_lio_matching PUBLIC
+    mola_ct_lio_core
+    mola::mola_metric_maps
+    mrpt::maps
+  )
+  set_target_properties(mola_ct_lio_matching PROPERTIES POSITION_INDEPENDENT_CODE ON)
+else()
+  message(STATUS "mola_metric_maps or mrpt-maps not found: skipping the matching layer")
+endif()
 
 # ------------------------------------------------------------------------------
 # Tests
@@ -58,9 +87,22 @@ if(ament_cmake_FOUND)
 
     ament_add_gtest(test_window_optimizer core/test/test_window_optimizer.cpp)
     target_link_libraries(test_window_optimizer mola_ct_lio_core)
+
+    if(MOLA_CT_LIO_HAS_MODULE)
+      ament_add_gtest(test_map_matcher module/test/test_map_matcher.cpp)
+      target_link_libraries(test_map_matcher mola_ct_lio_matching)
+    endif()
   endif()
 
   install(DIRECTORY core/include/ DESTINATION include)
+  if(MOLA_CT_LIO_HAS_MODULE)
+    install(TARGETS mola_ct_lio_matching
+      ARCHIVE DESTINATION lib
+      LIBRARY DESTINATION lib
+      RUNTIME DESTINATION bin
+    )
+  endif()
+
   install(TARGETS mola_ct_lio_core
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
