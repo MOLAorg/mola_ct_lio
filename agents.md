@@ -416,9 +416,24 @@ direct contradiction between them.
 
 That is what the deskew experiments show. Turning the per-point deskew on
 diverges with the inertial term (2.6e6 m on the provider's own clouds, so it
-is nothing to do with the raw bags) and behaves perfectly without it: raw
-scans, real deskew, LiDAR only scores 0.162 m on spx-2, matching the best the
-single-instant path reaches with the IMU. `imu_time_offset` exists to correct
+is nothing to do with the raw bags) and behaves perfectly without it *on one
+mission*: raw scans, real deskew, LiDAR only scores 0.162 m on spx-2. That
+single result does not generalize, and reading it as "the inertial term is
+harmful" was wrong. Measured on five missions, LiDAR-only diverges on three of
+them and is two to three times worse on the rest:
+
+| mission | LiDAR only | with IMU |
+|---|---|---|
+| arc-2 | 2811 | 0.858 |
+| arc-3 | 9117 | 2.459 |
+| con-3 | 5038 | 0.0167 |
+| snow-2 | 0.0597 | 0.0208 |
+| eth-1 | 0.1348 | 0.0521 |
+| spx-2 | 0.162 | 0.161 |
+
+The inertial term is load-bearing everywhere except the one sequence that
+happened to be measured first. So the deskewed path has to be fixed rather
+than traded away. `imu_time_offset` exists to correct
 it; what value each dataset wants is a sweep, not a guess.
 
 ## Scoring grand-tour needs the dataset's own body-frame correction
