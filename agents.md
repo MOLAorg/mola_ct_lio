@@ -233,9 +233,37 @@ The cap is not what these numbers rest on. Raising
 rather than 91%, moves obsq-01 by 0.0002, improves keble-02, grand-tour 10-01
 and 11-02, and costs obsq-02 5%. 1000 is the default on that balance.
 
-Open: obsq-02 is the one sequence still well off, at 0.16 against a best of
-0.054, and it is the only one that prefers a *tighter* cap. Worth
-understanding rather than tuning.
+The balance also did what a hand-tuned constant never could: it made the
+inertial noise density stop mattering. Over a 20x range of
+`accel_noise_density`, with everything else fixed:
+
+| accel_noise_density | obsq-02 before | obsq-02 after | keble-02 after |
+|---|---|---|---|
+| 1e-2 | 66.1 | 0.173 | 0.0426 |
+| 5e-2 | 1.546 | 0.1595 | 0.0433 |
+| 2e-1 | 853 | 0.1315 | 0.0455 |
+
+Four orders of magnitude of swing became thirty percent. That, rather than any
+single APE figure, is the robustness result.
+
+### The bias prior wants to be tight, not loose
+
+obsq-02 was the laggard, and its accelerometer bias was the one thing that set
+it apart: a median norm of 0.39 m/s^2 against 0.08 to 0.13 elsewhere. The
+per-axis medians are small, so it is not an offset; the norm is made of
+excursions reaching 1.09 m/s^2. The state was absorbing registration error,
+not sensor bias, and the remedy is the opposite of the obvious one:
+
+| `bias_prior_sigma_acc` | obsq-02 |
+|---|---|
+| 2.0 | 0.391 |
+| 1.0 | 0.386 |
+| 0.3 | 0.1595 |
+| 0.05 | 0.1467 |
+
+Loosening the bound nearly triples the error. Tightening the bias random walk
+alongside it adds nothing (0.148 against 0.147), so it is the absolute bound
+doing the work.
 
 ## Pre-deskewed clouds make the continuous-time model degenerate
 
