@@ -71,6 +71,9 @@ struct Segment
   PreintegratedImu imu;
   bool hasImu = false;
 
+  /// How much of its own interval the preintegration above actually spans.
+  double imuCoverage = 0;
+
   /** Relative motion over this segment as reported by an independent
    * odometry source, in the begin knot's frame, and whether there is one.
    *

@@ -73,6 +73,8 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("bias_sigma_acc", params.optimizer.biasSigmaAcc);
   readDouble("bias_sigma_gyro", params.optimizer.biasSigmaGyro);
   readDouble("velocity_prior_sigma", params.optimizer.velocityPriorSigma);
+  readDouble("max_imu_wait_segments", params.maxImuWaitSegments);
+  readDouble("min_imu_coverage", params.minImuCoverage);
   readDouble("bias_prior_sigma_acc", params.optimizer.biasPriorSigmaAcc);
   readDouble("bias_prior_sigma_gyro", params.optimizer.biasPriorSigmaGyro);
   readDouble("twist_continuity_weight", params.optimizer.twistContinuityWeight);
@@ -380,6 +382,20 @@ void CtOdometryEngine::closeReadySegments(double latestPointTime)
       break;
     }
 
+    // Points that carry their own capture times run a whole sweep ahead of the
+    // message that delivered them, so a segment is ready to close well before
+    // the inertial samples that span it have arrived. Nothing is lost by
+    // waiting: the points stay pending and the next scan releases the segment.
+    // The bound is there so that a stalled or absent inertial stream cannot
+    // hold the trajectory up for ever.
+    const bool inertialStillCatchingUp =
+      params.optimizer.useImu && !imu_.empty() && imu_.back().t < tEnd;
+    if (
+      inertialStillCatchingUp &&
+      latestPointTime - tEnd < params.maxImuWaitSegments * params.segmentInterval) {
+      break;
+    }
+
     ct::Segment seg;
     {
       mrpt::system::CTimeLoggerEntry tle(profiler, "buildSegment");
@@ -389,7 +405,17 @@ void CtOdometryEngine::closeReadySegments(double latestPointTime)
     if (params.optimizer.useImu) {
       mrpt::system::CTimeLoggerEntry tle(profiler, "preintegrate");
       seg.imu = preintegrate(tBegin, tEnd, knots_.back().state);
-      seg.hasImu = seg.imu.dt > 0;
+
+      // A preintegration that covers only part of its segment describes a
+      // different interval from the one its two knots are apart, and its
+      // covariance shrinks with that interval, so the shorter it is the more
+      // confidently it is wrong. Dropping it is the honest reading.
+      const double span = std::max(1e-9, tEnd - tBegin);
+      seg.imuCoverage = seg.imu.dt / span;
+      seg.hasImu = seg.imuCoverage >= params.minImuCoverage;
+      if (seg.imu.dt > 0 && !seg.hasImu) {
+        truncatedImuSegments_++;
+      }
     }
 
     ct::SE3 odoDelta;
@@ -517,6 +543,7 @@ void CtOdometryEngine::emitOldest()
   d.mapPoints = matcher_.pointCount();
   d.segmentPoints = segments_[0].points.size();
   d.alphaSpread = segments_[0].alphaSpread;
+  d.imuCoverage = segments_[0].imuCoverage;
   d.starved =
     params.starvationRatio > 0 && pointCountAverage_ > 0 &&
     static_cast<double>(segments_[0].points.size()) < params.starvationRatio * pointCountAverage_;

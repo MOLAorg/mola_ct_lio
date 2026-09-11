@@ -82,6 +82,25 @@ public:
     /// bounds. [s]
     double odometryKeepMargin = 1.0;
 
+    /// How long a ready segment may be held back waiting for the inertial
+    /// stream to reach its end, as a multiple of the segment interval.
+    ///
+    /// Points that carry their own capture times run a whole sweep ahead of
+    /// the message that delivered them, so a segment can be ready to close
+    /// long before the inertial samples spanning it have arrived. Building a
+    /// factor from what happens to be there does not give a weaker
+    /// measurement, it gives a wrong one, since the deltas then describe a
+    /// fraction of the interval the two knots are apart. The bound exists so
+    /// that a stalled or absent inertial stream cannot hold the trajectory up
+    /// for ever.
+    double maxImuWaitSegments = 3.0;
+
+    /// The fraction of a segment the preintegration must actually span before
+    /// its factor is used at all. Below this the deltas and the knot spacing
+    /// describe different intervals, and since the covariance shrinks with
+    /// the interval, the shorter the factor the more confidently it is wrong.
+    double minImuCoverage = 0.98;
+
     /// Where in a segment the first scan is made to land, as a fraction of
     /// the segment. The LiDAR information of a point at alpha splits between
     /// the two knots as (1 - alpha) and alpha, so a scan sitting exactly on a
@@ -121,6 +140,9 @@ public:
 
     /// See Segment::alphaSpread.
     double alphaSpread = 0;
+
+    /// How much of its own interval the segment's preintegration spans.
+    double imuCoverage = 0;
 
     /// Whether this segment was held out of the map as starved.
     bool starved = false;
@@ -218,6 +240,7 @@ private:
   /// what a starved one is judged against.
   double pointCountAverage_ = 0;
   std::size_t starvedSegments_ = 0;
+  std::size_t truncatedImuSegments_ = 0;
 
   struct OdometrySample
   {

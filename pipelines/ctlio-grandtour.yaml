@@ -60,6 +60,12 @@ lidar_balance: ${CTLIO_LIDAR_BALANCE|TwoSided}
 lidar_balance_max_scale: ${CTLIO_LIDAR_BALANCE_MAX|1000.0}
 lidar_balance_min_dof: ${CTLIO_BALANCE_MIN_DOF|200}
 starvation_ratio: ${CTLIO_STARVATION|0.0}
+# A segment whose points carry their own capture times is ready to close a
+# whole sweep before the inertial samples spanning it arrive. Waiting costs
+# nothing; building the factor from partial coverage gives a wrong
+# measurement rather than a weak one. See agents.md.
+max_imu_wait_segments: ${CTLIO_IMU_WAIT|3.0}
+min_imu_coverage: ${CTLIO_IMU_COVERAGE|0.98}
 velocity_prior_sigma: ${CTLIO_VEL_PRIOR|5.0}
 bias_prior_sigma_acc: ${CTLIO_BIAS_PRIOR_ACC|0.3}
 bias_prior_sigma_gyro: ${CTLIO_BIAS_PRIOR_GYRO|0.02}

@@ -51,6 +51,9 @@ table in sync when adding a parameter.
 | `max_step_translation` | `CTLIO_MAX_STEP` | 1.0 m | 0.2 - 5.0 | trust region: a longer step is scaled down as a whole. 0 disables it |
 | `max_step_velocity` | `CTLIO_MAX_STEP_V` | 2.0 m/s | 0.5 - 10 | the same bound on the velocity block, which the translation one does not cover |
 | `relinearize_each_slide` | `CTLIO_RELIN` | false | false / true | whether a knot's Jacobian point follows the estimate or is held from its first marginalization |
+| `velocity_prior_sigma` | `CTLIO_VEL_PRIOR` | 5.0 m/s | 2 - 20 | absolute bound on the velocity state; the step bound is not one |
+| `max_imu_wait_segments` | `CTLIO_IMU_WAIT` | 3.0 | 1 - 10 | how long a ready segment waits for the inertial stream, in segments |
+| `min_imu_coverage` | `CTLIO_IMU_COVERAGE` | 0.98 | 0.9 - 1.0 | fraction of a segment the preintegration must span to be used |
 | `bias_prior_sigma_acc` | `CTLIO_BIAS_PRIOR_ACC` | 0.3 m/s^2 | 0.1 - 1.0 | absolute bound on the accel bias; the random walk alone leaves it unbounded. 0 disables |
 | `imu_time_offset` | `CTLIO_IMU_DT` | 0.0 s | -0.02 - 0.02 | added to every inertial sample's stamp; temporal calibration |
 | `odometry_sigma_lin` | `CTLIO_ODO_SIGMA_LIN` | 0 (off) | 0.005 - 0.5 | external odometry's relative motion per segment. 0 disables |
@@ -395,6 +398,51 @@ velocity block is enormous passed it untouched, and on that run it fired on
 2.9% of windows. Velocity is precisely the state that an inconsistency
 between the geometry and the inertial term collects in, so it needs its own
 bound, which `max_step_velocity` now gives it.
+
+## The deskewed inertial path: a preintegration that does not span its segment
+
+This is the defect behind every deskew symptom recorded below, and it is a
+plumbing invariant rather than anything in the mathematics.
+
+A point that carries its own capture time sits up to a full sweep after the
+message that delivered it. Bags replay in record order, so when a scan
+arrives the inertial deque holds samples only up to about that message's own
+stamp. `closeReadySegments()` closes on the latest *point* time, so it closes
+segments up to 99.6 ms past the last inertial sample available;
+`preintegrate()` clamps to what it has and returns whatever it managed to
+cover; and `hasImu = imu.dt > 0` accepted any of it.
+
+The factor then describes a different interval from the one its two knots are
+apart. Two consequences, both observed:
+
+- Every factor short by roughly half an inertial period leaves gravity
+  under-compensated by 0.025 m/s per segment, a steady push only the
+  accelerometer bias can absorb. That is the bias climbing against its own
+  prior.
+- A scan gap makes one call close two segments, and the second gets a few
+  milliseconds. The position residual then reads the segment's whole
+  displacement as if it happened in that time, so velocity inflates by the
+  ratio. Preintegration covariance shrinks as `dt^3`, so such a factor carries
+  enormous information: it is not a weak measurement, it is a maximally
+  confident wrong one.
+
+Measured over whole missions at a 0.1 s knot spacing, about 4% of factors were
+being dropped outright and a few tenths of a percent kept with under 20 ms of
+coverage, the worst inflating by 1700x to 1900x. With one instant per scan the
+coverage is 1.000 everywhere, which is the entire difference between the two
+paths.
+
+It also explains why sweeping `imu_time_offset` showed no minimum. The offset
+shifts the inertial frontier, so it shifts coverage rather than any physical
+alignment: the two settings that diverge are exactly the two whose worst
+inflation runs into the thousands, and the best of the sweep is the only one
+with no truncated factor at all.
+
+The fix is to hold a ready segment until the inertial stream reaches its end,
+bounded so a stalled stream cannot stop the trajectory, and to refuse a
+preintegration that spans less than `min_imu_coverage` of its segment.
+`imuCoverage` is now in the state dump, since nothing reported it before,
+which is why this survived so long.
 
 ## A five-millisecond clock offset, and why it only shows up now
 
