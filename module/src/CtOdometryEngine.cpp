@@ -67,6 +67,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("convergence_threshold", params.optimizer.convergenceThreshold);
   readDouble("lambda", params.optimizer.lambda);
   readDouble("max_step_translation", params.optimizer.maxStepTranslation);
+  readDouble("max_step_velocity", params.optimizer.maxStepVelocity);
   readDouble("kernel_scale", params.optimizer.kernelScale);
   readBool("use_imu", params.optimizer.useImu);
   readDouble("bias_sigma_acc", params.optimizer.biasSigmaAcc);

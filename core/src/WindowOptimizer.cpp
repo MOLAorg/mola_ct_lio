@@ -341,15 +341,32 @@ WindowOptimizer::Result WindowOptimizer::optimize(
     // is poorly conditioned. Scaling the whole step keeps its direction, which
     // a per-knot clamp would not, and lets the following iterations walk the
     // rest of the way if the direction was right after all.
+    // The step is scaled as a whole, by whichever bound it strains most, so
+    // that its direction survives. Position and velocity are checked
+    // separately because they are not in the same units and a step can be
+    // unremarkable in one while running away in the other.
+    double shrink = 1.0;
     if (params.maxStepTranslation > 0) {
       double longest = 0;
       for (int k = 0; k < knotCount; k++) {
         longest = std::max(longest, step.segment<3>(k * dim + kIdxPosition).norm());
       }
       if (longest > params.maxStepTranslation) {
-        step *= params.maxStepTranslation / longest;
-        result.stepWasLimited = true;
+        shrink = std::min(shrink, params.maxStepTranslation / longest);
       }
+    }
+    if (params.useImu && params.maxStepVelocity > 0) {
+      double fastest = 0;
+      for (int k = 0; k < knotCount; k++) {
+        fastest = std::max(fastest, step.segment<3>(k * dim + kIdxVelocity).norm());
+      }
+      if (fastest > params.maxStepVelocity) {
+        shrink = std::min(shrink, params.maxStepVelocity / fastest);
+      }
+    }
+    if (shrink < 1.0) {
+      step *= shrink;
+      result.stepWasLimited = true;
     }
 
     double maxTranslationStep = 0;

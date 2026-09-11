@@ -160,6 +160,17 @@ public:
     /// next matching finds nothing and the two feed each other. [m]
     double maxStepTranslation = 1.0;
 
+    /// Largest velocity change any single knot may take in one iteration.
+    ///
+    /// The translation limit above does not cover this. A window can propose
+    /// a step whose position block is unremarkable and whose velocity block
+    /// is enormous, and that step passes: measured on a diverging run, the
+    /// velocity state goes from 0.05 to 38 m/s in one window while the
+    /// translation limit never fires. Velocity is the state an inconsistency
+    /// between the geometry and the inertial term ends up in, so it needs its
+    /// own bound. [m/s]
+    double maxStepVelocity = 2.0;
+
     RobustKernel kernel = RobustKernel::Cauchy;
     double kernelScale = 0.5;
 

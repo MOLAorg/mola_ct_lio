@@ -55,6 +55,7 @@ convergence_threshold: ${CTLIO_CONVERGE_TH|0.001}
 lambda: ${CTLIO_LAMBDA|0.0}
 relinearize_each_slide: ${CTLIO_RELIN|false}
 max_step_translation: ${CTLIO_MAX_STEP|1.0}
+max_step_velocity: ${CTLIO_MAX_STEP_V|2.0}
 lidar_balance: ${CTLIO_LIDAR_BALANCE|TwoSided}
 lidar_balance_max_scale: ${CTLIO_LIDAR_BALANCE_MAX|1000.0}
 lidar_balance_min_dof: ${CTLIO_BALANCE_MIN_DOF|200}

@@ -49,6 +49,7 @@ table in sync when adding a parameter.
 | `convergence_threshold` | `CTLIO_CONVERGE_TH` | 1e-3 m | 1e-4 - 1e-2 | on the largest knot translation step |
 | `lambda` | `CTLIO_LAMBDA` | 0.0 | 0 - 1e-3 | Levenberg damping as a fraction of the diagonal; 0 is plain Gauss-Newton |
 | `max_step_translation` | `CTLIO_MAX_STEP` | 1.0 m | 0.2 - 5.0 | trust region: a longer step is scaled down as a whole. 0 disables it |
+| `max_step_velocity` | `CTLIO_MAX_STEP_V` | 2.0 m/s | 0.5 - 10 | the same bound on the velocity block, which the translation one does not cover |
 | `relinearize_each_slide` | `CTLIO_RELIN` | false | false / true | whether a knot's Jacobian point follows the estimate or is held from its first marginalization |
 | `bias_prior_sigma_acc` | `CTLIO_BIAS_PRIOR_ACC` | 0.3 m/s^2 | 0.1 - 1.0 | absolute bound on the accel bias; the random walk alone leaves it unbounded. 0 disables |
 | `imu_time_offset` | `CTLIO_IMU_DT` | 0.0 s | -0.02 - 0.02 | added to every inertial sample's stamp; temporal calibration |
@@ -366,6 +367,34 @@ correspondences, whose own relative error goes as `sqrt(2/dof)`, and was free
 to amplify a near rank-deficient block by up to the cap. It is inert on every
 sequence measured so far, where the block carries tens of thousands of degrees
 of freedom, so it is insurance rather than a fix.
+
+## How a deskewed window actually dies, and what the trust region missed
+
+Worth recording in full, because the first two explanations were wrong.
+
+Per-point deskew plus the inertial term diverges on grand-tour. It is not the
+raw bags: the provider's own clouds do the same through that path. It is not
+the deskew: the same points with the inertial term off score 0.162 m. Reading
+the run knot by knot shows the actual sequence:
+
+| knot | segpts | inliers | speed | bias |
+|---|---|---|---|---|
+| 1-6 | ~5000 | ~20000 | 0.13-0.17 | 0.2-0.37 |
+| 7 | 5428 | 18139 | **37.90** | 0.160 |
+| 13 | 5362 | 11853 | 35.48 | 3.23 |
+| 40 | 3214 | **0** | 93158 | -- |
+
+The velocity state jumps by three orders of magnitude in one window *while the
+geometry is still healthy*, with eighteen thousand inliers. Everything after
+that, the bias climbing past its own prior and the correspondences vanishing,
+is consequence rather than cause.
+
+The trust region should have caught it and could not: it only measured the
+step's position block. A step whose translation is unremarkable and whose
+velocity block is enormous passed it untouched, and on that run it fired on
+2.9% of windows. Velocity is precisely the state that an inconsistency
+between the geometry and the inertial term collects in, so it needs its own
+bound, which `max_step_velocity` now gives it.
 
 ## A five-millisecond clock offset, and why it only shows up now
 
