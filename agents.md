@@ -429,6 +429,39 @@ LiDAR before trusting the tail of a run, and compare against a
 non-geometric reference over short baselines to find *when* an estimate left,
 which an absolute-error metric will not tell you.
 
+## The residual error is local, not a warp, which inverts the usual advice
+
+Relative translation error over a 10 m baseline, against absolute error, on
+the shipped defaults:
+
+| mission | ATE | RTE(10 m) | RTE/ATE |
+|---|---|---|---|
+| spx-2 | 0.1613 | 0.1309 | 0.81 |
+| arc-2 | 0.2402 | 0.3021 | 1.26 |
+| eig-1 | 0.0526 | 0.1289 | 2.45 |
+| snow-2 | 0.0210 | 0.0873 | 4.16 |
+
+The reference method's own submission sits at 0.29 and the rest of that
+leaderboard at 0.44 to 0.68, and the conclusion drawn there was that local
+registration is not the lever, the error being a smooth place-dependent warp.
+This estimator is the opposite: the local error is *larger* than the global
+one, so local registration is exactly the lever here and that advice does not
+transfer.
+
+Two further measurements say the same thing from the other side. Compared
+against the legged estimator over one-second windows, arc-2 and spx-2 have no
+disagreement above five times the median anywhere, 0 windows of 436 and 394
+respectively, at a median of 8 mm and 6 mm. So there are no episodes left,
+only accumulated drift, and the drift is coming from trajectory that is locally
+noisy rather than globally bent.
+
+A likely cause is specific to this dataset. With one instant per scan a
+segment carries a single alpha, so the LiDAR constrains the pose at that alpha
+and says nothing about the motion between the knots, which is free to wobble.
+That is what a relative error four times the absolute one looks like, and it
+is an argument for the deskewed path now that the reason it used to diverge is
+understood and fixed.
+
 ## The deskewed inertial path: a preintegration that does not span its segment
 
 This is the defect behind every deskew symptom recorded below, and it is a
