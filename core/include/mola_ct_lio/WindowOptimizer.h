@@ -191,6 +191,12 @@ public:
     /// terms. See assembleBiasPriorBlock(): the random walk alone leaves them
     /// unbounded. Loose enough that a genuine sensor bias never feels it.
     /// Zero disables. [m/s^2] and [rad/s]
+    /// How far a knot's velocity may stray from zero in absolute terms.
+    /// Loose enough that real motion never feels it; it exists so that a
+    /// velocity no platform can reach is not silently acceptable. Zero
+    /// disables. [m/s]
+    double velocityPriorSigma = 5.0;
+
     double biasPriorSigmaAcc = 0.3;
     double biasPriorSigmaGyro = 0.02;
 

@@ -72,6 +72,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readBool("use_imu", params.optimizer.useImu);
   readDouble("bias_sigma_acc", params.optimizer.biasSigmaAcc);
   readDouble("bias_sigma_gyro", params.optimizer.biasSigmaGyro);
+  readDouble("velocity_prior_sigma", params.optimizer.velocityPriorSigma);
   readDouble("bias_prior_sigma_acc", params.optimizer.biasPriorSigmaAcc);
   readDouble("bias_prior_sigma_gyro", params.optimizer.biasPriorSigmaGyro);
   readDouble("twist_continuity_weight", params.optimizer.twistContinuityWeight);

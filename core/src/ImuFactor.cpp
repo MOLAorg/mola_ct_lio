@@ -199,4 +199,21 @@ KnotBlock assembleBiasPriorBlock(const KnotState & state, double sigmaAcc, doubl
   return out;
 }
 
+KnotBlock assembleVelocityPriorBlock(const KnotState & state, double sigma)
+{
+  KnotBlock out;
+  if (sigma <= 0) {
+    return out;
+  }
+
+  const double w = 1.0 / (sigma * sigma);
+  for (int k = 0; k < 3; k++) {
+    const int i = kIdxVelocity + k;
+    out.H(i, i) += w;
+    out.g[i] += -w * state.v[k];
+    out.chi2 += w * state.v[k] * state.v[k];
+  }
+  return out;
+}
+
 }  // namespace mola::ct

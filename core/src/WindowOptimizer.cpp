@@ -276,6 +276,10 @@ void WindowOptimizer::assemble(
     }
 
     for (int k = 0; k < knotCount; k++) {
+      const KnotBlock vp = assembleVelocityPriorBlock(knots[k].state, params.velocityPriorSigma);
+      system_.addStateBlock(k, vp.H, vp.g);
+      result.chi2 += vp.chi2;
+
       const KnotBlock bp =
         assembleBiasPriorBlock(knots[k].state, params.biasPriorSigmaAcc, params.biasPriorSigmaGyro);
       system_.addStateBlock(k, bp.H, bp.g);

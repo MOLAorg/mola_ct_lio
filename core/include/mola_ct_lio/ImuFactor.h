@@ -152,6 +152,20 @@ struct ImuBlock
  * normal operation and only bites when the estimate leaves physical reality.
  * A zero sigma disables its half of the term.
  */
+/** Keeps a knot's velocity inside what the platform can physically do.
+ *
+ * The trust region bounds how far one iteration may move the velocity; it
+ * does not bound where the velocity ends up, and a state can walk a long way
+ * in small steps. Measured on a mission that diverges, the reported speed
+ * reaches 872 m/s while the geometry stays healthy, with twenty-four thousand
+ * inliers. That is not a velocity any ground platform has, and nothing in the
+ * estimator said so, exactly as nothing used to say so about the bias.
+ *
+ * The sigma is meant to be loose enough that real motion never feels it, so
+ * this is inert in normal operation. Zero disables.
+ */
+[[nodiscard]] KnotBlock assembleVelocityPriorBlock(const KnotState & state, double sigma);
+
 [[nodiscard]] KnotBlock assembleBiasPriorBlock(
   const KnotState & state, double sigmaAcc, double sigmaGyro);
 
