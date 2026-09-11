@@ -51,6 +51,11 @@ public:
     /// Voxel size used to decimate a segment's points before matching. [m]
     double sourceVoxelSize = 0.4;
 
+    /// Keep one occupied source voxel in this many. Thins the cloud without
+    /// coarsening the points that remain, which raising the voxel size would.
+    /// One keeps every voxel.
+    int sourceVoxelStride = 1;
+
     /// Voxel size used to decimate points on their way into the map. [m]
     double mapVoxelSize = 0.4;
 
@@ -92,7 +97,7 @@ public:
    * first in each cell.
    */
   [[nodiscard]] static std::vector<ct::SegmentPoint> downsample(
-    const std::vector<ct::SegmentPoint> & in, double voxelSize);
+    const std::vector<ct::SegmentPoint> & in, double voxelSize, int stride = 1);
 
   /** Correspondence query for one segment, in the form the estimator wants. */
   void match(

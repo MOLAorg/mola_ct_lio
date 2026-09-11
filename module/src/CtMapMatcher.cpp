@@ -72,6 +72,9 @@ void CtMapMatcher::initialize(const mrpt::containers::yaml & cfg)
   };
 
   readDouble("source_voxel_size", params.sourceVoxelSize);
+  if (cfg.has("source_voxel_stride")) {
+    params.sourceVoxelStride = cfg["source_voxel_stride"].as<int>();
+  }
   readDouble("map_voxel_size", params.mapVoxelSize);
   readDouble("map_radius", params.mapRadius);
   readUint("map_prune_period", params.prunePeriod);
@@ -101,7 +104,7 @@ void CtMapMatcher::applyCovarianceOptions(IncrementalPointCloud & m) const
 }
 
 std::vector<ct::SegmentPoint> CtMapMatcher::downsample(
-  const std::vector<ct::SegmentPoint> & in, double voxelSize)
+  const std::vector<ct::SegmentPoint> & in, double voxelSize, int stride)
 {
   if (voxelSize <= 0) {
     return in;
@@ -112,9 +115,19 @@ std::vector<ct::SegmentPoint> CtMapMatcher::downsample(
     firstInVoxel.emplace(voxelKeyOf(in[i].p, voxelSize), i);
   }
 
+  // Taking one occupied voxel in `stride` thins the cloud without coarsening
+  // it: the points that survive keep their original spacing, where raising the
+  // voxel size instead would move every one of them. The map key order is
+  // deterministic, so which voxels survive is too.
+  const int keepEvery = std::max(1, stride);
+
   std::vector<std::size_t> kept;
-  kept.reserve(firstInVoxel.size());
+  kept.reserve(firstInVoxel.size() / static_cast<std::size_t>(keepEvery) + 1);
+  std::size_t visited = 0;
   for (const auto & [key, index] : firstInVoxel) {
+    if (visited++ % static_cast<std::size_t>(keepEvery) != 0) {
+      continue;
+    }
     kept.push_back(index);
   }
   // Back to the original order, so that a pairing's index still means what the

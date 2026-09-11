@@ -187,7 +187,8 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
     raw.push_back(sp);
   }
 
-  seg.points = CtMapMatcher::downsample(raw, params.matcher.sourceVoxelSize);
+  seg.points =
+    CtMapMatcher::downsample(raw, params.matcher.sourceVoxelSize, params.matcher.sourceVoxelStride);
 
   if (!seg.points.empty()) {
     double lowest = seg.points.front().alpha;
