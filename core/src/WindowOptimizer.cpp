@@ -258,6 +258,20 @@ void WindowOptimizer::assemble(
 
   // --- inertial, or the kinematic term that stands in for it ---
   if (params.useImu) {
+    // A segment can lack an inertial factor even when the estimator is
+    // inertial: the stream can end before the LiDAR's does, or the factor can
+    // be refused for not spanning its segment. Such a segment used to receive
+    // nothing at all, leaving the window free to move in whatever direction
+    // the geometry did not pin. The term that stands in for the IMU when
+    // there is none stands in here too.
+    bool everySegmentHasImu = true;
+    for (const auto & seg : segments) {
+      everySegmentHasImu = everySegmentHasImu && seg.hasImu;
+    }
+    if (!everySegmentHasImu) {
+      addTwistContinuity(knots);
+    }
+
     for (std::size_t k = 0; k < segments.size(); k++) {
       if (!segments[k].hasImu) {
         continue;

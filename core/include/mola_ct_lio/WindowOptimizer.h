@@ -231,9 +231,11 @@ public:
     double odometrySigmaLin = 0.0;
     double odometrySigmaAng = 0.0;
 
-    /// Weight of the twist-continuity term used when the IMU is absent. It is
-    /// what keeps a LiDAR-only window from drifting in an unobservable
-    /// direction, and it plays no part once IMU factors are present.
+    /// Weight of the twist-continuity term used where the IMU is absent. It
+    /// is what keeps a window from drifting in a direction the geometry does
+    /// not pin, and it applies per window rather than per run: a segment can
+    /// lack an inertial factor even in an inertial run, because the stream
+    /// ended early or because the factor did not span its segment.
     double twistContinuityWeight = 2.0;
   };
 

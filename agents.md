@@ -399,6 +399,36 @@ velocity block is enormous passed it untouched, and on that run it fired on
 between the geometry and the inertial term collects in, so it needs its own
 bound, which `max_step_velocity` now gives it.
 
+## ARC-7's divergence is the inertial stream ending before the LiDAR's
+
+Comparing the estimate against the legged estimator over one-second windows,
+which removes both sides' long-run drift and asks only whether they agree on
+how far the robot went:
+
+| | |
+|---|---|
+| median disagreement over 334 s | **0.009 m** |
+| windows disagreeing by more than five times that | 12, all of them after t=321 s |
+| what the legged estimator reports there | 0.000 m, the robot is standing still |
+
+So the run is essentially perfect for 96% of its length and then leaves in the
+last thirteen seconds. The bags say why: the Hesai's last message is at
+1731947868.2 and the ADIS's is at 1731947855.8, twelve and a half seconds
+earlier, and t=321 s is exactly that instant. The final stretch runs with no
+inertial factor at all, which on these missions diverges.
+
+The estimator had no answer for that. The twist-continuity term that stands in
+for the IMU was applied only when the whole run was non-inertial, so a segment
+that lost its inertial factor mid-run received nothing and the window was free
+to move wherever the geometry did not pin it. That mattered more once
+`min_imu_coverage` began refusing factors. It now applies whenever any segment
+in the window lacks one.
+
+Worth carrying to any dataset: check that the inertial stream outlasts the
+LiDAR before trusting the tail of a run, and compare against a
+non-geometric reference over short baselines to find *when* an estimate left,
+which an absolute-error metric will not tell you.
+
 ## The deskewed inertial path: a preintegration that does not span its segment
 
 This is the defect behind every deskew symptom recorded below, and it is a
