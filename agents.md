@@ -94,7 +94,7 @@ table in sync when adding a parameter.
 |---|---|---|---|---|
 | `ds_size` | `CTLIO_DS_SIZE` | 0.4 m | 0.2 - 1.0 | per-segment voxel downsample of the source points |
 | `source_voxel_stride` | `CTLIO_DS_STRIDE` | 1 | 1 - 3 | keep one occupied source voxel in this many; thins without coarsening |
-| `min_segment_points` | `CTLIO_MIN_SEG_PTS` | 2500 | 0 - 5000 | a short segment is re-decimated on a finer cell until it clears this. 0 disables |
+| `min_segment_points` | `CTLIO_MIN_SEG_PTS` | 0 Oxford / 5000 grand-tour | 0 - 5000 | a short segment is re-decimated on a finer cell until it clears this. 0 disables |
 | `min_range` | `CTLIO_MIN_RANGE` | 1.0 m | 0.3 - 3.0 | Oxford needs 1.0, KITTI 0.3 |
 | `max_range` | `CTLIO_MAX_RANGE` | 100 m | 50 - 150 | |
 | `decimation` | `CTLIO_DECIMATION` | 1 | 1 - 4 | the corpus has a standing result that decimation is free in both directions |
