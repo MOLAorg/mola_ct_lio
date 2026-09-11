@@ -53,8 +53,8 @@ table in sync when adding a parameter.
 | `relinearize_each_slide` | `CTLIO_RELIN` | false | false / true | whether a knot's Jacobian point follows the estimate or is held from its first marginalization |
 | `bias_prior_sigma_acc` | `CTLIO_BIAS_PRIOR_ACC` | 0.3 m/s^2 | 0.1 - 1.0 | absolute bound on the accel bias; the random walk alone leaves it unbounded. 0 disables |
 | `imu_time_offset` | `CTLIO_IMU_DT` | 0.0 s | -0.02 - 0.02 | added to every inertial sample's stamp; temporal calibration |
-| `odometry_sigma_lin` | `CTLIO_ODO_SIGMA_LIN` | 0.05 m | 0.01 - 0.5 | external odometry's relative motion per segment. 0 disables |
-| `odometry_sigma_ang` | `CTLIO_ODO_SIGMA_ANG` | 0.02 rad | 0.005 - 0.2 | same, rotation |
+| `odometry_sigma_lin` | `CTLIO_ODO_SIGMA_LIN` | 0 (off) | 0.005 - 0.5 | external odometry's relative motion per segment. 0 disables |
+| `odometry_sigma_ang` | `CTLIO_ODO_SIGMA_ANG` | 0 (off) | 0.002 - 0.2 | same, rotation |
 | `bias_prior_sigma_gyro` | `CTLIO_BIAS_PRIOR_GYRO` | 0.02 rad/s | 0.005 - 0.05 | same for the gyro bias |
 | `starvation_ratio` | `CTLIO_STARVATION` | 0 (off) | 0 - 0.5 | a segment holding this fraction of the recent average is held out of the map. 0 disables |
 | `lidar_balance_min_dof` | `CTLIO_BALANCE_MIN_DOF` | 200 | 50 - 1000 | degrees of freedom the LiDAR block needs before its reduced chi-square is acted on |
@@ -474,6 +474,20 @@ fixes the deskewed path -- is not supported. The offset is real and measured,
 the velocity bound is right on its own terms, and the deskewed inertial path
 remains marginally stable for a reason not yet found. Grand-tour continues to
 run single-instant.
+
+## External odometry: built, measured, and switched off for now
+
+The legged platform publishes its own kinematic-inertial estimate at 20 Hz,
+and the relative-motion factor that consumes it works: 5% on arc-2, 8% on
+arc-3, neutral on spx-2 and snow-2. Tighter sigmas are better here, down to
+0.005 m / 0.002 rad, which is the opposite of what the reference method found
+with the same source.
+
+It is off by default anyway. The LiDAR-inertial core still has failures nobody
+has explained -- per-point deskew destabilises the inertial term for reasons
+that are not the clock, not the data and not the deskew itself -- and fusing a
+second pose source on top of that only makes those harder to read. It goes
+back on once the core is understood alone.
 
 ## Scoring grand-tour needs the dataset's own body-frame correction
 

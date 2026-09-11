@@ -215,12 +215,12 @@ public:
     double lidarBalanceMinDof = 200.0;
 
     /// Uncertainty of an external odometry's relative motion over one
-    /// segment. Deliberately loose by default: such a source's pose channel
-    /// is worth having where geometry fails, and is not worth trusting
-    /// against good geometry. Zero on either disables that half.
-    /// [m] and [rad] per segment
-    double odometrySigmaLin = 0.05;
-    double odometrySigmaAng = 0.02;
+    /// segment. Zero on either disables that half, which is the default: the
+    /// factor is measured and useful, but a second pose source fused while
+    /// the LiDAR-inertial core still has unexplained failures only makes
+    /// those harder to read. [m] and [rad] per segment
+    double odometrySigmaLin = 0.0;
+    double odometrySigmaAng = 0.0;
 
     /// Weight of the twist-continuity term used when the IMU is absent. It is
     /// what keeps a LiDAR-only window from drifting in an unobservable
