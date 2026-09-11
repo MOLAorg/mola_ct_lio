@@ -20,6 +20,9 @@
 #include <mrpt/core/lock_helper.h>
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationPointCloud.h>
+#include <mrpt/opengl/CPointCloudColoured.h>
+#include <mrpt/opengl/CSetOfObjects.h>
+#include <mrpt/opengl/stock_objects.h>
 #include <mrpt/poses/Lie/SO.h>
 
 #include <cstdlib>
@@ -393,6 +396,85 @@ void CtLidarInertialOdometry::publishPose(double t, const mrpt::poses::CPose3D &
     lu.pose = pose.asTPose();
     advertiseUpdatedLocalization(lu);
   }
+
+  updateVisualization(pose);
+}
+
+void CtLidarInertialOdometry::updateVisualization(const mrpt::poses::CPose3D & pose)
+{
+  if (!visualizer_) {
+    return;
+  }
+
+  if (visualization_params_.current_pose_corner_size > 0) {
+    auto glVehicle = mrpt::opengl::CSetOfObjects::Create();
+    glVehicle->insert(
+      mrpt::opengl::stock_objects::CornerXYZ(visualization_params_.current_pose_corner_size));
+    glVehicle->setPose(pose);
+    visualizer_->update_3d_object("ctlio/vehicle", glVehicle);
+  }
+
+  updateVisualizationPath(pose);
+  updateVisualizationMap();
+}
+
+void CtLidarInertialOdometry::updateVisualizationPath(const mrpt::poses::CPose3D & pose)
+{
+  if (!visualization_params_.show_trajectory) {
+    visualizer_->update_3d_object("ctlio/path", mrpt::opengl::CSetOfObjects::Create());
+    return;
+  }
+
+  if (!gl_path_) {
+    gl_path_ = mrpt::opengl::CSetOfLines::Create();
+  }
+
+  const auto t = pose.translation();
+  if (gl_path_->empty()) {
+    gl_path_->appendLine(t, t);
+  } else {
+    gl_path_->appendLineStrip(t);
+  }
+
+  auto grp = mrpt::opengl::CSetOfObjects::Create();
+  grp->insert(mrpt::opengl::CSetOfLines::Create(*gl_path_));
+  visualizer_->update_3d_object("ctlio/path", grp);
+}
+
+void CtLidarInertialOdometry::updateVisualizationMap()
+{
+  if (!visualization_params_.show_map) {
+    visualizer_->update_3d_object("ctlio/map", mrpt::opengl::CSetOfObjects::Create());
+    return;
+  }
+
+  if (++map_viz_counter_ < visualization_params_.map_update_decimation) {
+    return;
+  }
+  map_viz_counter_ = 0;
+
+  const auto & m = engine_->matcher().map();
+  if (m.isEmpty()) {
+    return;
+  }
+
+  auto points = m.liveCompactedCopy();
+  if (!points || points->empty()) {
+    return;
+  }
+
+  auto glCloud = mrpt::opengl::CPointCloudColoured::Create();
+  glCloud->loadFromPointsMap(points.get());
+  glCloud->setPointSize(visualization_params_.map_point_size);
+
+  // Height is what makes a street or a staircase legible at a glance, and it
+  // needs no extra channel from the estimator to compute.
+  const auto bbox = points->boundingBox();
+  glCloud->recolorizeByCoordinate(bbox.min.z, bbox.max.z, 2 /*Z*/, mrpt::img::TColormap::cmJET);
+
+  auto grp = mrpt::opengl::CSetOfObjects::Create();
+  grp->insert(glCloud);
+  visualizer_->update_3d_object("ctlio/map", grp);
 }
 
 void CtLidarInertialOdometry::publishMap(const mrpt::Clock::time_point & timestamp)

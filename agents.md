@@ -265,6 +265,21 @@ Loosening the bound nearly triples the error. Tightening the bias random walk
 alongside it adds nothing (0.148 against 0.147), so it is the absolute bound
 doing the work.
 
+## Scoring grand-tour needs the dataset's own body-frame correction
+
+Its ground truth is anchored to a physical sensor mount, not to `base`, which
+is what the odometry reports. For every mission here the mount is `cpt7_imu`,
+`0.0764 -0.0361 0.2803 0 -0 179.9954` from `base`: a 0.29 m lever arm and a
+180 degree roll, on a robot that pitches on every step.
+
+The correction is `T_world_sensor(t) = T_world_base(t) . T_base_sensor`, the
+arm rotated into the world frame by the estimate's own orientation at each
+timestamp. A constant shift will not do, since alignment absorbs that.
+
+It is not a formality: on 2024-10-01 it takes the result from 0.0990 m to
+0.0615 m, so scoring without it understates the method by nearly 40%. Use
+`score_gt.py`, not the plain scorer, for anything from this dataset.
+
 ## Pre-deskewed clouds make the continuous-time model degenerate
 
 With `clouds_already_deskewed`, every point of a scan carries one timestamp,

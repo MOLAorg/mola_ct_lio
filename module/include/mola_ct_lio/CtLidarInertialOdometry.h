@@ -20,9 +20,11 @@
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/MapSourceBase.h>
+#include <mrpt/opengl/CSetOfLines.h>
 #include <mrpt/poses/CPose3D.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
 
+#include <atomic>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -137,6 +139,32 @@ private:
   std::size_t scans_processed_ = 0;
   std::size_t observations_seen_ = 0;
   bool warned_no_scans_ = false;
+
+  /** What the 3D view shows, when one is attached.
+   *
+   * Deliberately small: the path the estimator has walked and the map it is
+   * registering against are what tell an operator whether a run is healthy,
+   * and anything beyond that belongs in the diagnostics dump instead.
+   */
+  struct VisualizationParams
+  {
+    std::atomic_bool show_trajectory{true};
+    std::atomic_bool show_map{true};
+
+    float current_pose_corner_size = 1.0f;
+    float map_point_size = 2.0f;
+
+    /// Processed scans between map refreshes. Redrawing a large cloud costs
+    /// more than the odometry step it would be reporting on.
+    int map_update_decimation = 10;
+  } visualization_params_;
+
+  mrpt::opengl::CSetOfLines::Ptr gl_path_;
+  int map_viz_counter_ = 0;
+
+  void updateVisualization(const mrpt::poses::CPose3D & pose);
+  void updateVisualizationPath(const mrpt::poses::CPose3D & pose);
+  void updateVisualizationMap();
 
   /// Segments whose points span too little of their own interval for the
   /// continuous-time interpolation to be identifiable, counted over the first
