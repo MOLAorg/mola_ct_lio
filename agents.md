@@ -190,12 +190,43 @@ are robustness, and both sit at the edges rather than in the middle:
 - Every sequence shows a cold start, the first emitted pose being 18x to 51x
   too fast.
 
-The first round of fixes addressed the recursion itself rather than adding a
-symptom check on top of it. The prior used to be built from the system as it
-stood one step before the states it was declared to describe, and the Jacobian
-linearization point was recaptured on every slide, so each prior inherited
-Jacobians taken elsewhere. Both are now consistent, and `max_step_translation`
-gives Gauss-Newton the trust region it otherwise lacks.
+Four of the five sequences no longer diverge. What fixed them, in order of
+effect:
+
+- **An absolute prior on the IMU bias.** The random-walk factor only speaks
+  about the *difference* between consecutive knots' biases, so the biases
+  themselves were unbounded. On a diverging sequence the accelerometer bias
+  goes from 0.14 to 25 m/s^2 in one second, two and a half times gravity, and
+  stays there; velocity, inliers and residual all follow it rather than lead
+  it. Bounding it takes keble-02 from 130 m to 1.15 m, and a control run with
+  the prior disabled reproduces the old number exactly.
+- **A consistent marginalization recursion.** The prior used to be built from
+  the system as it stood one step before the states it was declared to
+  describe, and the Jacobian point was recaptured on every slide so each prior
+  inherited Jacobians taken elsewhere. Holding the Jacobian point is worth 13x
+  on keble-02 on its own.
+
+`max_step_translation` is insurance, not a fix: it never fires on any sequence
+measured so far. The runaways are slow ramps, not jumps.
+
+Still diverging: grand-tour 2024-11-02, by a different mechanism. Its bias
+stays healthy throughout, but its segments hold a median of 866 points against
+Oxford's 12000, and some hold none at all. See the segment-degeneracy note
+below.
+
+## Pre-deskewed clouds make the continuous-time model degenerate
+
+With `clouds_already_deskewed`, every point of a scan carries one timestamp,
+because the geometry does belong to one instant. At `segment_interval: 0.1`
+against a 10 Hz sensor that means one scan per segment and a single alpha, so
+the interpolation has nothing to interpolate: the end knot of each segment
+receives no LiDAR information at all, and its velocity is set by the inertial
+term and the prior alone. Scan jitter across a boundary also leaves some
+segments empty outright.
+
+Only the undistorted topic exists in these bags, so the fix is a segment long
+enough to span several scans and recover distinct alphas. That makes
+`segment_interval` dataset-dependent rather than a universal default.
 
 ## The LiDAR/IMU weighting, and why the default is not the datasheet figure
 
