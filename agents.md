@@ -295,21 +295,32 @@ occasional segments arriving nearly empty, and nothing in the estimator
 currently treats such a segment differently from a full one. Four of the ten
 are at or below 0.052 m, so the machinery is right when it is fed.
 
-## What sustained sparsity actually wants: finer decimation
+## Decimation has to follow density, and a fixed voxel cannot
 
-The two uniformly sparse missions, against a baseline of 0.4 m decimation:
+Finer decimation (0.15 m source, 0.2 m map) against the 0.4 m default:
 
-| mission | baseline | segment 0.20 | segment 0.30 | decimation 0.15/0.2 |
-|---|---|---|---|---|
-| 2024-11-02-17-18-32 | 1.323 | 0.780 | 7.50 | 0.892 |
-| 2024-11-18-13-22-14 | 4.915 | 5.99 | 14.88 | 0.954 |
+| sequence | median segpts | 0.4 m | 0.15 m |
+|---|---|---|---|
+| obsq-01 | 3116 | 0.0753 | 0.1437 |
+| keble-02 | 2690 | 0.0431 | 0.0762 |
+| obsq-02 | 3193 | 0.1302 | 0.1507 |
+| grand-tour 2024-10-01 | 7400 | 0.0521 | 0.0696 |
+| grand-tour 2024-11-03-07-57-34 | 6189 | 0.0222 | 0.0222 |
+| grand-tour 2024-12-09-09-34-43 | 5352 | 0.295 | 0.294 |
+| grand-tour 2024-11-02 | 896 | 1.323 | 0.892 |
+| grand-tour 2024-12-09-11-28-28 | 1700 | 1.614 | 0.300 |
+| grand-tour 2024-11-18-13-22-14 | 458 | 4.915 | 0.954 |
 
-A longer segment helps one and hurts the other, so it is not the answer.
-Finer decimation helps both, and by a factor of five on the sparser of the
-two. That is the same knob an earlier sweep found neutral, but that sweep ran
-before the balance existed: when the LiDAR was contributing a ten-thousandth
-of the position information, no amount of extra points was going to show up.
-It is being re-measured across every sequence now.
+The split is by density and nothing else: every sequence above about 2500
+points per segment is unchanged or worse, every one below is better, by five
+times on the two sparsest. So neither value is a defensible default, and the
+knob is the wrong shape. What the data asks for is a target *count* rather
+than a fixed cell: coarse where returns are plentiful, fine where they are
+scarce. `source_voxel_stride` is already the mechanism for the thinning half.
+
+A longer segment is not the answer for the sparse missions either: 0.20 s
+takes 2024-11-02 from 1.32 to 0.78 but 2024-11-18-13-22-14 from 4.92 to 5.99,
+and 0.30 s is far worse on both.
 
 ## Withholding a starved segment from the map makes things worse
 
@@ -360,6 +371,28 @@ timestamp. A constant shift will not do, since alignment absorbs that.
 It is not a formality: on 2024-10-01 it takes the result from 0.0990 m to
 0.0615 m, so scoring without it understates the method by nearly 40%. Use
 `score_gt.py`, not the plain scorer, for anything from this dataset.
+
+## The raw grand-tour LiDAR bags exist, and we were not using them
+
+Each mission publishes about thirty per-topic bags, and the subset fetched for
+LIO work took `<mission>_hesai_undist.bag`. Upstream also publishes
+`<mission>_hesai.bag` (3.06 GB against the undistorted 2.49 GB) and
+`<mission>_hesai_packets.bag`, neither of which was downloaded. Listing a
+mission's full set: `COLUMNS=250 klein list files -p GrandTourDataset -m
+release_<mission>`.
+
+This matters more than a convenience. Everything below about segment
+degeneracy follows from the provider having collapsed each scan to one
+instant; raw scans carry their own per-point timing and uncorrected geometry,
+which is precisely what a continuous-time method is built to consume.
+
+Worth knowing before reaching for a shortcut: the *undistorted* clouds do
+still carry usable per-point timestamps, which our reader reports as
+`per-point relative` when `clouds_already_deskewed` is off. They cannot be
+used as they stand. Those coordinates have already been moved to a single
+reference instant, so evaluating each point at `poseAt(alpha)` applies the
+motion correction a second time, of order 0.1 m over a segment against 0.03 m
+residuals. The times are real; the geometry they belong to is gone.
 
 ## Pre-deskewed clouds make the continuous-time model degenerate
 
