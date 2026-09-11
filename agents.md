@@ -447,9 +447,33 @@ get there: bounding the velocity step alone cut the blow-up from 1.0e7 to
 the reference but never acted on. The offset is the seed, the unbounded
 velocity step was the amplifier.
 
-Note the deskewed path at 2.26 m is still well short of the single-instant
-path's 0.161 m on the same mission, so five milliseconds is approximately
-right rather than optimal.
+Sweeping the offset properly, however, says this is not a calibration
+problem after all:
+
+| offset | spx-2 |
+|---|---|
+| -10 ms | 1.362 |
+| 0 | 64553 |
+| +3 ms | 84513 |
+| +5 ms | 2.263 |
+| +7 ms | 2.369 |
+| +10 ms | 2.011 |
+| +15 ms | 2.961 |
+| +20 ms | 2.338 |
+| *single instant, no deskew* | ***0.161*** |
+
+There is no optimum. Two settings three milliseconds apart give 84513 m and
+2.26 m, and the best deskewed result of the whole sweep is eight times worse
+than the single-instant path already in use. A well calibrated clock would
+show a smooth minimum; this shows a configuration that happens to survive at
+some offsets and not others.
+
+So the raw bags buy nothing today, and the conclusion the four-orders-of-
+magnitude result invited -- that the clock was the fault and correcting it
+fixes the deskewed path -- is not supported. The offset is real and measured,
+the velocity bound is right on its own terms, and the deskewed inertial path
+remains marginally stable for a reason not yet found. Grand-tour continues to
+run single-instant.
 
 ## Scoring grand-tour needs the dataset's own body-frame correction
 
