@@ -108,6 +108,7 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
   YAML_LOAD_OPT(lidar_sensor_label, std::string);
   YAML_LOAD_OPT(imu_sensor_label, std::string);
   YAML_LOAD_OPT(odometry_sensor_label, std::string);
+  YAML_LOAD_OPT(imu_time_offset, double);
   YAML_LOAD_OPT(baselink2lidar_pose_str, std::string);
   YAML_LOAD_OPT(fallback_scan_period, double);
   YAML_LOAD_OPT(map_publish_period, double);
@@ -353,7 +354,7 @@ void CtLidarInertialOdometry::onImu(const mrpt::obs::CObservation::ConstPtr & o)
     }
   }
 
-  engine_->addImuSample(t, acc, gyro);
+  engine_->addImuSample(t + imu_time_offset, acc, gyro);
 }
 
 void CtLidarInertialOdometry::onLidar(const mrpt::obs::CObservation::ConstPtr & o)

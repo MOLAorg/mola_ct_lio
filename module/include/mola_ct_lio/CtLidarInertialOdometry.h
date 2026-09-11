@@ -108,6 +108,19 @@ private:
   /// kinematic-inertial estimator. Optional; absent on most datasets.
   std::string odometry_sensor_label = "odometry";
 
+  /** Added to every inertial sample's timestamp before it is integrated. [s]
+   *
+   * Temporal calibration between the two sensors' clocks. It is worth having
+   * as a parameter because a continuous-time estimator is unusually exposed
+   * to it: with one instant per scan the LiDAR says nothing about motion
+   * inside a segment, so an offset merely biases the result, but once the
+   * points carry their own times both sensors constrain the same motion and
+   * the two disagree outright. Measured against a reference trajectory, this
+   * dataset's gyro agrees best five milliseconds from where its stamps put
+   * it, which is half a segment.
+   */
+  double imu_time_offset = 0.0;
+
   /// Extra transform composed on top of the observation's own sensor pose,
   /// as "x y z yaw_deg pitch_deg roll_deg". It carries the whole extrinsic
   /// only for datasets whose reader cannot supply one.

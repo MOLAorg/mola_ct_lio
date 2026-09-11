@@ -51,6 +51,9 @@ table in sync when adding a parameter.
 | `max_step_translation` | `CTLIO_MAX_STEP` | 1.0 m | 0.2 - 5.0 | trust region: a longer step is scaled down as a whole. 0 disables it |
 | `relinearize_each_slide` | `CTLIO_RELIN` | false | false / true | whether a knot's Jacobian point follows the estimate or is held from its first marginalization |
 | `bias_prior_sigma_acc` | `CTLIO_BIAS_PRIOR_ACC` | 0.3 m/s^2 | 0.1 - 1.0 | absolute bound on the accel bias; the random walk alone leaves it unbounded. 0 disables |
+| `imu_time_offset` | `CTLIO_IMU_DT` | 0.0 s | -0.02 - 0.02 | added to every inertial sample's stamp; temporal calibration |
+| `odometry_sigma_lin` | `CTLIO_ODO_SIGMA_LIN` | 0.05 m | 0.01 - 0.5 | external odometry's relative motion per segment. 0 disables |
+| `odometry_sigma_ang` | `CTLIO_ODO_SIGMA_ANG` | 0.02 rad | 0.005 - 0.2 | same, rotation |
 | `bias_prior_sigma_gyro` | `CTLIO_BIAS_PRIOR_GYRO` | 0.02 rad/s | 0.005 - 0.05 | same for the gyro bias |
 | `starvation_ratio` | `CTLIO_STARVATION` | 0 (off) | 0 - 0.5 | a segment holding this fraction of the recent average is held out of the map. 0 disables |
 | `lidar_balance_min_dof` | `CTLIO_BALANCE_MIN_DOF` | 200 | 50 - 1000 | degrees of freedom the LiDAR block needs before its reduced chi-square is acted on |
@@ -363,6 +366,31 @@ correspondences, whose own relative error goes as `sqrt(2/dof)`, and was free
 to amplify a near rank-deficient block by up to the cap. It is inert on every
 sequence measured so far, where the block carries tens of thousands of degrees
 of freedom, so it is insurance rather than a fix.
+
+## A five-millisecond clock offset, and why it only shows up now
+
+Verified against this dataset's own reference, with the gyro rotated from
+`adis16475_imu` into `box_base` by the bag's own `/tf_static`, the ADIS agrees
+with ground-truth angular velocity as follows:
+
+| shift | x | y | z |
+|---|---|---|---|
+| none | +0.857 | +0.947 | +0.988 |
+| +5 ms | +0.952 | +0.987 | +0.992 |
+
+Five milliseconds is half a segment at the 0.1 s knot spacing and more than a
+whole segment at 0.04 s. A continuous-time estimator is unusually exposed to
+this. With one instant per scan the LiDAR says nothing about motion *inside* a
+segment, so a clock offset merely biases the answer; once the points carry
+their own times both sensors constrain the same motion and an offset is a
+direct contradiction between them.
+
+That is what the deskew experiments show. Turning the per-point deskew on
+diverges with the inertial term (2.6e6 m on the provider's own clouds, so it
+is nothing to do with the raw bags) and behaves perfectly without it: raw
+scans, real deskew, LiDAR only scores 0.162 m on spx-2, matching the best the
+single-instant path reaches with the IMU. `imu_time_offset` exists to correct
+it; what value each dataset wants is a sweep, not a guess.
 
 ## Scoring grand-tour needs the dataset's own body-frame correction
 

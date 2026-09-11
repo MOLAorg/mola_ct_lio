@@ -66,6 +66,11 @@ kernel_scale: ${CTLIO_KERNEL_SCALE|0.5}
 
 # --- inertial ---
 use_imu: ${CTLIO_USE_IMU|true}
+# Temporal calibration between the LiDAR and IMU clocks. A continuous-time
+# estimator is unusually exposed to this: with real per-point times both
+# sensors constrain the same motion, so an offset is a direct conflict
+# rather than a bias. See agents.md.
+imu_time_offset: ${CTLIO_IMU_DT|0.0}
 gyro_noise_density: ${CTLIO_GYRO_SIGMA|1.7e-4}
 # The accelerometer weight is an EFFECTIVE one, not the datasheet figure.
 # At the sensor's nominal 2e-3 the inertial factors carry some four orders of
