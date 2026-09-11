@@ -295,6 +295,22 @@ occasional segments arriving nearly empty, and nothing in the estimator
 currently treats such a segment differently from a full one. Four of the ten
 are at or below 0.052 m, so the machinery is right when it is fed.
 
+## What sustained sparsity actually wants: finer decimation
+
+The two uniformly sparse missions, against a baseline of 0.4 m decimation:
+
+| mission | baseline | segment 0.20 | segment 0.30 | decimation 0.15/0.2 |
+|---|---|---|---|---|
+| 2024-11-02-17-18-32 | 1.323 | 0.780 | 7.50 | 0.892 |
+| 2024-11-18-13-22-14 | 4.915 | 5.99 | 14.88 | 0.954 |
+
+A longer segment helps one and hurts the other, so it is not the answer.
+Finer decimation helps both, and by a factor of five on the sparser of the
+two. That is the same knob an earlier sweep found neutral, but that sweep ran
+before the balance existed: when the LiDAR was contributing a ten-thousandth
+of the position information, no amount of extra points was going to show up.
+It is being re-measured across every sequence now.
+
 ## Withholding a starved segment from the map makes things worse
 
 Worth recording as a dead end, since the reasoning is appealing. A segment
