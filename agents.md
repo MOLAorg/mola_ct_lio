@@ -458,9 +458,23 @@ noisy rather than globally bent.
 A likely cause is specific to this dataset. With one instant per scan a
 segment carries a single alpha, so the LiDAR constrains the pose at that alpha
 and says nothing about the motion between the knots, which is free to wobble.
-That is what a relative error four times the absolute one looks like, and it
-is an argument for the deskewed path now that the reason it used to diverge is
-understood and fixed.
+That looked like an argument for the deskewed path, now that the reason it
+used to diverge is understood and fixed. Measured, it is not:
+
+| spx-2 | ATE | RTE(1 m) | RTE(10 m) |
+|---|---|---|---|
+| single instant | 0.1613 | 0.0223 | 0.1309 |
+| per-point deskew | 0.1613 | 0.0229 | 0.1287 |
+
+Deskewing gives every segment a full alpha spread where it had one value, and
+changes nothing on either metric. So a single alpha is not what makes this
+trajectory locally noisy, and the reasoning above, however plausible, was
+wrong.
+
+What the deskewed run does show is that the path itself is now sound: it went
+from 2.6e6 m to parity with the single-instant result. It simply buys nothing,
+while costing 24 GB of raw bags and a good deal more compute, so the
+single-instant path stays.
 
 ## The deskewed inertial path: a preintegration that does not span its segment
 
