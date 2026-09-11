@@ -42,11 +42,37 @@ def ypr_to_R(yaw, pitch, roll):  # degrees, MRPT order Rz.Ry.Rx
     Rx = np.array([[1,0,0],[0,np.cos(r),-np.sin(r)],[0,np.sin(r),np.cos(r)]])
     return Rz @ Ry @ Rx
 
-# base -> cpt7_imu, from the missions' own /tf_static
-OFF_T = np.array([0.0764, -0.0361, 0.2803])
-OFF_R = ypr_to_R(0.0, -0.0, 179.9954)
+# The mount the ground truth is anchored to is NOT the same for every mission:
+# most are the RTK-INS (`cpt7_imu`, 0.29 m from base), but the construction-site
+# ones are the total-station prism (0.64 m, and position-only truth). Using one
+# offset for all of them mis-scores the others by the difference, which is of
+# the same order as the errors being measured. Read it per mission instead of
+# assuming.
+import re as _re
 
-def compose(estf, outf):
+_DEFAULT = ("0.0764 -0.0361 0.2803 0.0000 -0.0000 179.9954", False)
+
+def offset_for(gt_path):
+    """base -> GT mount for the mission owning `gt_path`, from the CI map."""
+    try:
+        txt = open("/opt/mola-ci/dataset-map.yml").read()
+    except OSError:
+        spec, xyz = _DEFAULT
+    else:
+        mission = Path(gt_path).parent.name if False else gt_path.split("/")[-2]
+        spec, xyz = _DEFAULT
+        for block in _re.split(r"\n(?=\S)", txt):
+            if mission not in block:
+                continue
+            m = _re.search(r'gt_body_offset:\s*"([^"]+)"', block)
+            if m:
+                spec = m.group(1)
+            xyz = bool(_re.search(r"gt_xyz_only:\s*true", block))
+            break
+    v = [float(x) for x in spec.split()]
+    return np.array(v[:3]), ypr_to_R(v[3], v[4], v[5]), xyz
+
+def compose(estf, outf, OFF_T, OFF_R):
     d = np.loadtxt(estf)
     out = np.empty_like(d)
     out[:,0] = d[:,0]
@@ -60,10 +86,11 @@ if __name__ == "__main__":
     gtf, estf, label = sys.argv[1], sys.argv[2], sys.argv[3]
     if not os.path.exists(estf):
         print("  %-26s MISSING" % label); sys.exit(0)
+    off_t, off_r, xyz_only = offset_for(gtf)
     tmp = estf + ".body.tum"
-    compose(estf, tmp)
+    compose(estf, tmp, off_t, off_r)
     for tag, f in (("raw ", estf), ("body", tmp)):
         o = subprocess.run(["evo_ape","tum",gtf,f,"--align","--t_max_diff","0.05"],
                            capture_output=True, text=True).stdout
         r = [l.split()[-1] for l in o.splitlines() if l.strip().startswith("rmse")]
-        print("  %-26s %s  APE %s" % (label, tag, r[0] if r else "?"))
+        print("  %-26s %s  APE %s%s" % (label, tag, r[0] if r else "?", "  [prism/xyz-only GT]" if (tag=="body" and xyz_only) else ""))

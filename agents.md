@@ -367,9 +367,14 @@ of freedom, so it is insurance rather than a fix.
 ## Scoring grand-tour needs the dataset's own body-frame correction
 
 Its ground truth is anchored to a physical sensor mount, not to `base`, which
-is what the odometry reports. For every mission here the mount is `cpt7_imu`,
-`0.0764 -0.0361 0.2803 0 -0 179.9954` from `base`: a 0.29 m lever arm and a
-180 degree roll, on a robot that pitches on every step.
+is what the odometry reports. The mount is not the same for every mission, and assuming it is costs more
+than skipping the correction altogether. Most are anchored to the RTK-INS,
+`cpt7_imu`, `0.0764 -0.0361 0.2803 0 -0 179.9954` from `base`, a 0.29 m lever
+arm and a 180 degree roll. The three construction-site missions are anchored
+to the total-station prism instead, `0.3852 0.0022 0.5152 0.5425 0.1622
+179.3402`, a 0.64 m arm, and their truth is position-only. Scoring those three
+with the RTK offset reads 0.295 m where the right one reads 0.023 m: a
+twelvefold error, on a robot that pitches on every step.
 
 The correction is `T_world_sensor(t) = T_world_base(t) . T_base_sensor`, the
 arm rotated into the world frame by the estimate's own orientation at each
