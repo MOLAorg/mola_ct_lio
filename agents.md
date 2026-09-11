@@ -433,8 +433,23 @@ them and is two to three times worse on the rest:
 
 The inertial term is load-bearing everywhere except the one sequence that
 happened to be measured first. So the deskewed path has to be fixed rather
-than traded away. `imu_time_offset` exists to correct
-it; what value each dataset wants is a sweep, not a guess.
+than traded away. `imu_time_offset` corrects it, and the
+correction is what decides whether the deskewed path runs at all:
+
+| | dt = 0 | dt = +5 ms |
+|---|---|---|
+| spx-2 | 64553 | **2.263** |
+| arc-2 | 28699 | **1.625** |
+
+Four orders of magnitude from five milliseconds. Both halves were needed to
+get there: bounding the velocity step alone cut the blow-up from 1.0e7 to
+6.5e4 and still left it divergent, and the offset alone was measured against
+the reference but never acted on. The offset is the seed, the unbounded
+velocity step was the amplifier.
+
+Note the deskewed path at 2.26 m is still well short of the single-instant
+path's 0.161 m on the same mission, so five milliseconds is approximately
+right rather than optimal.
 
 ## Scoring grand-tour needs the dataset's own body-frame correction
 
