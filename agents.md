@@ -429,6 +429,37 @@ LiDAR before trusting the tail of a run, and compare against a
 non-geometric reference over short baselines to find *when* an estimate left,
 which an absolute-error metric will not tell you.
 
+## Part of what is being measured on grand-tour is the reference itself
+
+Its tier-1 reference, the RTK-INS at `cpt7_imu`, carries **0.132 m mean ATE by
+upstream's own validation**. It is decimeter-class, not centimeter. The tier-2
+reference, the total-station prism, is far better but position-only.
+
+That splits this dataset's missions into two groups whose numbers cannot be
+read the same way:
+
+| reference | missions | ours |
+|---|---|---|
+| prism, tier 2 | con-1, con-2, con-3 | 0.023, 0.026, 0.017 |
+| RTK-INS, tier 1 | everything else | 0.021 to 0.24 |
+
+On spx-2 we score 0.1613 against a reference whose own error is 0.132. If the
+two are independent, our own contribution is about
+`sqrt(0.161^2 - 0.132^2) = 0.09` m, and most of what the metric reports is not
+ours.
+
+This is the explanation for an otherwise baffling sweep. Eight parameters that
+set local registration precision -- neighbours for the covariance, rematch
+period, window length, kernel scale, correspondence distance, plane deviation
+-- move spx-2 between 0.1608 and 0.1614, a spread of four tenths of a percent.
+Nothing moves it because the number is not mostly about us.
+
+Two consequences. Tuning against tier-1 missions past roughly 0.13 m is
+chasing the reference's noise, and a local dev mean over those missions will
+not predict a benchmark scored against better hidden references. Prefer the
+prism missions, and prefer relative metrics, for anything meant to detect a
+real improvement.
+
 ## The residual error is local, not a warp, which inverts the usual advice
 
 Relative translation error over a 10 m baseline, against absolute error, on
