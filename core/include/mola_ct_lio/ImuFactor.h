@@ -112,6 +112,14 @@ inline void incKnot(KnotState & s, const Vec15 & inc)
   Mat9x30 & J);
 
 /** Normal-equation contribution of one IMU factor, whitened by `pim.cov`. */
+/** A single knot's contribution, over its full state. */
+struct KnotBlock
+{
+  Eigen::Matrix<double, kKnotDim, kKnotDim> H = Eigen::Matrix<double, kKnotDim, kKnotDim>::Zero();
+  Vec15 g = Vec15::Zero();
+  double chi2 = 0;
+};
+
 struct ImuBlock
 {
   Mat30 H = Mat30::Zero();
@@ -129,5 +137,22 @@ struct ImuBlock
  */
 [[nodiscard]] ImuBlock assembleBiasRandomWalkBlock(
   const KnotState & si, const KnotState & sj, double dt, double sigmaAcc, double sigmaGyro);
+
+/** Keeps the IMU bias states inside the range a real sensor can have.
+ *
+ * The random-walk factor only ever speaks about the *difference* between two
+ * consecutive knots' biases, so the biases themselves are free to wander as
+ * far as the rest of the system pushes them, and a bias of several g is
+ * reachable without any factor objecting. That is not a bias any more: it is
+ * the estimator explaining a registration failure with the one state cheap
+ * enough to absorb it.
+ *
+ * This adds the missing absolute statement. The sigmas are meant to be loose
+ * enough that a genuine bias never feels them, so this changes nothing in
+ * normal operation and only bites when the estimate leaves physical reality.
+ * A zero sigma disables its half of the term.
+ */
+[[nodiscard]] KnotBlock assembleBiasPriorBlock(
+  const KnotState & state, double sigmaAcc, double sigmaGyro);
 
 }  // namespace mola::ct

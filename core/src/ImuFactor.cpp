@@ -176,4 +176,27 @@ ImuBlock assembleBiasRandomWalkBlock(
   return out;
 }
 
+KnotBlock assembleBiasPriorBlock(const KnotState & state, double sigmaAcc, double sigmaGyro)
+{
+  KnotBlock out;
+
+  const auto accumulate = [&](int offset, const Vec3 & residual, double sigma) {
+    if (sigma <= 0) {
+      return;
+    }
+    const double w = 1.0 / (sigma * sigma);
+    for (int k = 0; k < 3; k++) {
+      const int i = offset + k;
+      out.H(i, i) += w;
+      out.g[i] += -w * residual[k];
+      out.chi2 += w * residual[k] * residual[k];
+    }
+  };
+
+  accumulate(kIdxBiasAcc, state.biasAcc, sigmaAcc);
+  accumulate(kIdxBiasGyro, state.biasGyro, sigmaGyro);
+
+  return out;
+}
+
 }  // namespace mola::ct

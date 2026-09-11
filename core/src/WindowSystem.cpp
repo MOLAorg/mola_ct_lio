@@ -30,8 +30,8 @@ namespace
  */
 template <typename BlockH, typename BlockG>
 void scatter(
-  Eigen::MatrixXd & H, Eigen::VectorXd & g, const std::vector<int> & offsets,
-  const BlockH & blockH, const BlockG & blockG)
+  Eigen::MatrixXd & H, Eigen::VectorXd & g, const std::vector<int> & offsets, const BlockH & blockH,
+  const BlockG & blockG)
 {
   const auto n = static_cast<int>(offsets.size());
   for (int i = 0; i < n; i++) {
@@ -95,6 +95,17 @@ void WindowSystem::addStatePairBlock(int k, const Mat30 & H, const Vec30 & g)
     for (int i = 0; i < kKnotDim; i++) {
       offsets.push_back((k + c) * knotDim_ + i);
     }
+  }
+  scatter(H_, g_, offsets, H, g);
+}
+
+void WindowSystem::addStateBlock(int k, const Eigen::MatrixXd & H, const Eigen::VectorXd & g)
+{
+  const auto n = static_cast<int>(H.rows());
+  std::vector<int> offsets;
+  offsets.reserve(static_cast<std::size_t>(n));
+  for (int i = 0; i < n; i++) {
+    offsets.push_back(k * knotDim_ + i);
   }
   scatter(H_, g_, offsets, H, g);
 }

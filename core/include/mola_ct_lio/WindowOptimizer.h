@@ -127,6 +127,13 @@ public:
     double biasSigmaAcc = 1e-3;
     double biasSigmaGyro = 1e-4;
 
+    /// How far the bias states are allowed to stray from zero in absolute
+    /// terms. See assembleBiasPriorBlock(): the random walk alone leaves them
+    /// unbounded. Loose enough that a genuine sensor bias never feels it.
+    /// Zero disables. [m/s^2] and [rad/s]
+    double biasPriorSigmaAcc = 0.3;
+    double biasPriorSigmaGyro = 0.02;
+
     /// Weight of the twist-continuity term used when the IMU is absent. It is
     /// what keeps a LiDAR-only window from drifting in an unobservable
     /// direction, and it plays no part once IMU factors are present.
@@ -149,6 +156,16 @@ public:
     /// Whether any iteration asked for a longer step than the trust region
     /// allows. A window that reports this was not simply refining.
     bool stepWasLimited = false;
+
+    /// How much information each source puts on the knots' *position*, summed
+    /// over the window's diagonal. Restricting the comparison to one block
+    /// makes it apples-to-apples: a trace over the whole state would add
+    /// m^-2 to rad^-2 to (m/s)^-2 and mean nothing. These are what decide
+    /// whether the LiDAR can still correct the inertial prediction, or is
+    /// merely along for the ride. [m^-2]
+    double lidarPositionInfo = 0;
+    double imuPositionInfo = 0;
+    double priorPositionInfo = 0;
   };
 
   /** Runs the optimization in place.

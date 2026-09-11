@@ -66,6 +66,8 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readBool("use_imu", params.optimizer.useImu);
   readDouble("bias_sigma_acc", params.optimizer.biasSigmaAcc);
   readDouble("bias_sigma_gyro", params.optimizer.biasSigmaGyro);
+  readDouble("bias_prior_sigma_acc", params.optimizer.biasPriorSigmaAcc);
+  readDouble("bias_prior_sigma_gyro", params.optimizer.biasPriorSigmaGyro);
   readDouble("twist_continuity_weight", params.optimizer.twistContinuityWeight);
 
   if (cfg.has("profiler_enabled")) {
@@ -373,6 +375,12 @@ void CtOdometryEngine::emitOldest()
   d.velocity = knots_[0].state.v;
   d.biasAcc = knots_[0].state.biasAcc;
   d.biasGyro = knots_[0].state.biasGyro;
+  d.stepWasLimited = lastResult_.stepWasLimited;
+  d.priorTrace = prior_.valid ? prior_.H.trace() : 0.0;
+  d.priorGradientNorm = prior_.valid ? prior_.g.norm() : 0.0;
+  d.lidarPositionInfo = lastResult_.lidarPositionInfo;
+  d.imuPositionInfo = lastResult_.imuPositionInfo;
+  d.priorPositionInfo = lastResult_.priorPositionInfo;
 
   onPose(knots_[0].t, knots_[0].state.T, d);
   knotsEmitted_++;

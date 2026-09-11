@@ -109,6 +109,21 @@ void WindowOptimizer::assemble(
   result.chi2 = 0;
   result.errorSum = 0;
   result.inliers = 0;
+  result.lidarPositionInfo = 0;
+  result.imuPositionInfo = 0;
+  result.priorPositionInfo = 0;
+
+  // Sums the position diagonal of a factor's Hessian over the knots it spans.
+  const auto positionInfoOf = [](const auto & H, int knotsSpanned, int strideInBlock) {
+    double sum = 0;
+    for (int k = 0; k < knotsSpanned; k++) {
+      for (int i = 0; i < 3; i++) {
+        const int r = k * strideInBlock + kIdxPosition + i;
+        sum += H(r, r);
+      }
+    }
+    return sum;
+  };
 
   // --- LiDAR ---
   for (std::size_t k = 0; k < segments.size(); k++) {
@@ -137,6 +152,7 @@ void WindowOptimizer::assemble(
 
     system_.addPosePairBlock(static_cast<int>(k), blk.H, blk.g);
 
+    result.lidarPositionInfo += positionInfoOf(blk.H, 2, 6);
     result.chi2 += blk.chi2;
     result.errorSum += blk.errorSum;
     result.inliers += blk.inliers;
@@ -151,6 +167,7 @@ void WindowOptimizer::assemble(
       const ImuBlock imuBlk =
         assembleImuBlock(segments[k].imu, knots[k].state, knots[k + 1].state, params.gravity);
       system_.addStatePairBlock(static_cast<int>(k), imuBlk.H, imuBlk.g);
+      result.imuPositionInfo += positionInfoOf(imuBlk.H, 2, kKnotDim);
       result.chi2 += imuBlk.chi2;
 
       const double dt = std::max(1e-6, knots[k + 1].t - knots[k].t);
@@ -158,6 +175,13 @@ void WindowOptimizer::assemble(
         knots[k].state, knots[k + 1].state, dt, params.biasSigmaAcc, params.biasSigmaGyro);
       system_.addStatePairBlock(static_cast<int>(k), rw.H, rw.g);
       result.chi2 += rw.chi2;
+    }
+
+    for (int k = 0; k < knotCount; k++) {
+      const KnotBlock bp =
+        assembleBiasPriorBlock(knots[k].state, params.biasPriorSigmaAcc, params.biasPriorSigmaGyro);
+      system_.addStateBlock(k, bp.H, bp.g);
+      result.chi2 += bp.chi2;
     }
   } else {
     addTwistContinuity(knots);
@@ -173,6 +197,8 @@ void WindowOptimizer::assemble(
       const Vec15 d = knotDeviation(knots[k].state, knots[k].priorAnchor);
       deviation.segment(k * dim, dim) = d.head(dim);
     }
+
+    result.priorPositionInfo = positionInfoOf(prior.H, std::min(priorKnots, knotCount), dim);
 
     // The prior's gradient was taken where the states stood when it was built,
     // so it has to be re-centered on wherever they have moved to since.

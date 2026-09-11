@@ -92,6 +92,22 @@ public:
     ct::Vec3 velocity = ct::Vec3::Zero();
     ct::Vec3 biasAcc = ct::Vec3::Zero();
     ct::Vec3 biasGyro = ct::Vec3::Zero();
+
+    /// Whether the trust region had to shorten a step in this window.
+    bool stepWasLimited = false;
+
+    /// Total information the marginalization prior carries, and the size of
+    /// the gradient it pulls with. A prior whose trace grows without bound is
+    /// over-counting what the states that left the window actually knew, and
+    /// makes the window stiff enough to stop following the data.
+    double priorTrace = 0;
+    double priorGradientNorm = 0;
+
+    /// Position information contributed by each source. See
+    /// WindowOptimizer::Result. [m^-2]
+    double lidarPositionInfo = 0;
+    double imuPositionInfo = 0;
+    double priorPositionInfo = 0;
   };
 
   /// Called once per knot, when it leaves the window.

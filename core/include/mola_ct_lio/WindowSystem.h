@@ -54,6 +54,11 @@ public:
    */
   void addStatePairBlock(int k, const Mat30 & H, const Vec30 & g);
 
+  /** Adds a contribution over the full state of a single knot `k`, as
+   * produced by a factor that speaks about one knot on its own.
+   */
+  void addStateBlock(int k, const Eigen::MatrixXd & H, const Eigen::VectorXd & g);
+
   /** Adds a contribution spanning the pose parts of three consecutive knots,
    * ordered `[k(6) ; k+1(6) ; k+2(6)]`, used by the twist-continuity term.
    */
