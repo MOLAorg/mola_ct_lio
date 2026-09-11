@@ -166,7 +166,7 @@ void WindowOptimizer::assemble(
   result.lidarDof = std::max(1.0, 3.0 * static_cast<double>(result.inliers) - 6.0 * knotCount);
   result.lidarScale = 1.0;
 
-  if (params.lidarBalance != LidarBalance::None && result.inliers >= 3) {
+  if (params.lidarBalance != LidarBalance::None && result.lidarDof >= params.lidarBalanceMinDof) {
     double kappa = result.lidarChi2 / result.lidarDof;
     if (params.lidarBalance == LidarBalance::DownOnly) {
       kappa = std::max(1.0, kappa);

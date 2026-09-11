@@ -57,6 +57,8 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("accel_noise_density", params.accelNoiseDensity);
   readBool("relinearize_each_slide", params.relinearizeEachSlide);
   readDouble("segment_phase_offset", params.segmentPhaseOffset);
+  readDouble("starvation_ratio", params.starvationRatio);
+  readDouble("lidar_balance_min_dof", params.optimizer.lidarBalanceMinDof);
 
   readInt("max_iterations", params.optimizer.maxIterations);
   readInt("rematch_every", params.optimizer.rematchEvery);
@@ -371,11 +373,29 @@ void CtOdometryEngine::slideWindow()
 
   emitOldest();
 
-  const ct::CtSegment oldest(knots_[0].state.T, knots_[1].state.T);
-  {
+  // A segment that arrived nearly empty was registered on very little
+  // geometry, so its pose is poorly determined and its points would go into
+  // the map at that pose, in front of every scan that follows. Holding it out
+  // keeps a brief loss of returns from becoming a permanent one.
+  const double segmentPoints = static_cast<double>(segments_[0].points.size());
+  const bool starved = params.starvationRatio > 0 && pointCountAverage_ > 0 &&
+                       segmentPoints < params.starvationRatio * pointCountAverage_;
+
+  if (starved) {
+    starvedSegments_++;
+  } else {
+    const ct::CtSegment oldest(knots_[0].state.T, knots_[1].state.T);
     mrpt::system::CTimeLoggerEntry tle(profiler, "mapInsert");
     matcher_.insert(oldest, segments_[0].points);
   }
+
+  // The average tracks every segment, starved ones included: a run that
+  // genuinely thins out should have the bar come down with it rather than
+  // reject everything from then on.
+  constexpr double kAverageWeight = 0.02;
+  pointCountAverage_ = pointCountAverage_ > 0 ? (1.0 - kAverageWeight) * pointCountAverage_ +
+                                                  kAverageWeight * segmentPoints
+                                              : segmentPoints;
 
   knots_.pop_front();
   segments_.pop_front();
@@ -407,6 +427,9 @@ void CtOdometryEngine::emitOldest()
   d.mapPoints = matcher_.pointCount();
   d.segmentPoints = segments_[0].points.size();
   d.alphaSpread = segments_[0].alphaSpread;
+  d.starved =
+    params.starvationRatio > 0 && pointCountAverage_ > 0 &&
+    static_cast<double>(segments_[0].points.size()) < params.starvationRatio * pointCountAverage_;
   d.velocity = knots_[0].state.v;
   d.biasAcc = knots_[0].state.biasAcc;
   d.biasGyro = knots_[0].state.biasGyro;

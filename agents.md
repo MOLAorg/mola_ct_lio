@@ -52,6 +52,8 @@ table in sync when adding a parameter.
 | `relinearize_each_slide` | `CTLIO_RELIN` | false | false / true | whether a knot's Jacobian point follows the estimate or is held from its first marginalization |
 | `bias_prior_sigma_acc` | `CTLIO_BIAS_PRIOR_ACC` | 0.3 m/s^2 | 0.1 - 1.0 | absolute bound on the accel bias; the random walk alone leaves it unbounded. 0 disables |
 | `bias_prior_sigma_gyro` | `CTLIO_BIAS_PRIOR_GYRO` | 0.02 rad/s | 0.005 - 0.05 | same for the gyro bias |
+| `starvation_ratio` | `CTLIO_STARVATION` | 0.25 | 0.1 - 0.5 | a segment holding this fraction of the recent average is held out of the map. 0 disables |
+| `lidar_balance_min_dof` | `CTLIO_BALANCE_MIN_DOF` | 200 | 50 - 1000 | degrees of freedom the LiDAR block needs before its reduced chi-square is acted on |
 | `segment_phase_offset` | `CTLIO_SEG_PHASE` | 0.0 | 0.0 - 0.5 | where in a segment the first scan lands. Only worth moving when a provider gives one instant per scan |
 | `lidar_balance` | `CTLIO_LIDAR_BALANCE` | None | None, DownOnly, TwoSided | reconciles the LiDAR block's weight with its own residuals, see below |
 | `lidar_balance_max_scale` | `CTLIO_LIDAR_BALANCE_MAX` | 1000 | 100 - 1e4 | how far the balance may rescale the block in either direction |
@@ -292,6 +294,26 @@ result of the ten. What breaks these runs is not a sparse sensor but
 occasional segments arriving nearly empty, and nothing in the estimator
 currently treats such a segment differently from a full one. Four of the ten
 are at or below 0.052 m, so the machinery is right when it is fed.
+
+## Two ways a starved segment used to do lasting damage
+
+Both follow from the measurement above, and neither was guarded:
+
+- **The map.** A segment registered on very little geometry has a poorly
+  determined pose, and its points went into the map at that pose, in front of
+  every scan that followed. `starvation_ratio` holds such a segment out. The
+  test has to be relative to a slow average of recent segments rather than an
+  absolute count, since what counts as few points differs by an order of
+  magnitude between missions of the same dataset: 2024-11-18-13-22-14's
+  *median* is 458 points, which is another mission's starvation. The average
+  tracks starved segments too, so a run that genuinely thins out has the bar
+  come down with it rather than rejecting everything from then on.
+- **The balance.** It only required three correspondences before acting on the
+  reduced chi-square, whose own relative error is about `sqrt(2/dof)`. A
+  starved window is exactly where the block is closest to rank deficient, and
+  the balance was free to amplify a handful of correspondences by up to the
+  cap: a brief loss of returns became a lasting one. `lidar_balance_min_dof`
+  now requires the ratio to be worth something before it is acted on.
 
 ## Scoring grand-tour needs the dataset's own body-frame correction
 

@@ -182,6 +182,17 @@ public:
     /// ratio, and this is what stops one from being acted on.
     double lidarBalanceMaxScale = 1000.0;
 
+    /// Degrees of freedom the LiDAR block must have before its reduced
+    /// chi-square is treated as a scale worth acting on.
+    ///
+    /// The estimate's own relative error is about sqrt(2/dof), so at 200 it
+    /// is good to some ten percent and below a few dozen it is nearly
+    /// meaningless. Acting on a meaningless ratio is not merely useless here:
+    /// a starved window is exactly where the block is closest to rank
+    /// deficient, and amplifying a handful of correspondences by up to the
+    /// cap is how a brief loss of returns turns into a lasting one.
+    double lidarBalanceMinDof = 200.0;
+
     /// Weight of the twist-continuity term used when the IMU is absent. It is
     /// what keeps a LiDAR-only window from drifting in an unobservable
     /// direction, and it plays no part once IMU factors are present.
