@@ -938,10 +938,18 @@ density-driven. Across four missions its logarithm correlates +0.48 to +0.72
 with speed and +0.46 to +0.68 with acceleration, while segment point count and
 inlier count correlate |r| <= 0.36 and usually under 0.1.
 
-In the worst 2.5% of windows the translational information *per correspondence*
-falls 13x to 23x while the correspondence count, the segment density and the
-inlier ratio all stay within 4% of normal. So a bad window is not a sparse one:
-the same number of matches simply carry far less information each.
+In the worst 2.5% of windows the correspondence count, the segment density and
+the inlier ratio all stay within 4% of normal, so a bad window is not a sparse
+one.
+
+Read `lidarPosInfo` with care: it is dumped *after* being multiplied by the
+balance, so at a window where the balance collapsed it understates the
+geometry's own contribution by exactly that factor. Divide the balance back
+out before comparing windows. Doing so, the raw information per correspondence
+at arc-3's spike windows is 1.16x its normal value, i.e. unchanged, and
+`lidarCond` is 1.38x, i.e. slightly better conditioned. Neither the amount of
+geometric information nor its distribution across the three axes degrades at a
+spike. Only the residual rises.
 
 This matters because the balance reacts to that chi-square. Down-weighting the
 whole LiDAR block during fast motion is only correct if the geometry really is
@@ -949,4 +957,6 @@ worse there; if the residual grew because the prediction did, it is backwards.
 `lidarCond` and `lidarWeakest` in the state dump exist to separate the two:
 `lidarCond` is the smallest-over-largest eigenvalue of the window's summed
 translational information, so a view that pins position only within a plane
-collapses it while leaving the correspondence count untouched.
+collapses it while leaving the correspondence count untouched. Measured, it
+does not collapse, which rules out geometric degeneracy as the cause and
+leaves the residual itself as the only thing that moves.
