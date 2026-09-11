@@ -175,7 +175,7 @@ public:
 
     /// How the LiDAR block's weight is reconciled against its own residuals.
     /// See LidarBalance.
-    LidarBalance lidarBalance = LidarBalance::None;
+    LidarBalance lidarBalance = LidarBalance::TwoSided;
 
     /// The furthest the balance may scale the LiDAR block in either
     /// direction. A window with very few correspondences can produce a wild

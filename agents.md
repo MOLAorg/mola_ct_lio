@@ -193,16 +193,32 @@ are robustness, and both sit at the edges rather than in the middle:
 - Every sequence shows a cold start, the first emitted pose being 18x to 51x
   too fast.
 
-Four of the five sequences no longer diverge. What fixed them, in order of
-effect:
+Residual-driven balancing changed the picture completely. With
+`lidar_balance: TwoSided` and otherwise identical settings on every dataset:
 
+| sequence | before | now | best on record |
+|---|---|---|---|
+| obsq-01 | 1.456 | **0.0750** | 0.0628 (lio cfg-03) |
+| obsq-02 | 1.546 | **0.1520** | 0.0543 (lio cfg-01) |
+| keble-02 | 1.153 | **0.0448** | **this**, next 0.0463 |
+| grand-tour 10-01 | 2.920 | **0.1337** | |
+| grand-tour 11-02 | 544.8 | **1.274** | |
+
+Nothing diverges any more, and keble-02 is the best number on record for that
+sequence. obsq-02 is the laggard and grand-tour 11-02 is still an order of
+magnitude off the Oxford sequences.
+
+What got there, in order of effect: the residual-driven LiDAR balance, then
+the absolute bias prior, then a consistent marginalization recursion.
+
+- **The balance.** See the weighting section below. Largest single effect by
+  far, and it removes a hand-tuned constant rather than adding one.
 - **An absolute prior on the IMU bias.** The random-walk factor only speaks
   about the *difference* between consecutive knots' biases, so the biases
   themselves were unbounded. On a diverging sequence the accelerometer bias
   goes from 0.14 to 25 m/s^2 in one second, two and a half times gravity, and
   stays there; velocity, inliers and residual all follow it rather than lead
-  it. Bounding it takes keble-02 from 130 m to 1.15 m, and a control run with
-  the prior disabled reproduces the old number exactly.
+  it. A control run with the prior disabled reproduces the old number exactly.
 - **A consistent marginalization recursion.** The prior used to be built from
   the system as it stood one step before the states it was declared to
   describe, and the Jacobian point was recaptured on every slide so each prior
@@ -212,10 +228,9 @@ effect:
 `max_step_translation` is insurance, not a fix: it never fires on any sequence
 measured so far. The runaways are slow ramps, not jumps.
 
-Still diverging: grand-tour 2024-11-02, by a different mechanism. Its bias
-stays healthy throughout, but its segments hold a median of 866 points against
-Oxford's 12000, and some hold none at all. See the segment-degeneracy note
-below.
+Open: `lidar_balance_max_scale` at 100 is binding between 68% and 95% of
+windows on every sequence, against implied ratios of 118 to 271, so the cap is
+still shaping the result and wants raising.
 
 ## Pre-deskewed clouds make the continuous-time model degenerate
 
