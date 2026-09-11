@@ -244,6 +244,7 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
   // corpus already handles well are left exactly as they were.
   constexpr int kMaxRefinements = 3;
   double cell = params.matcher.sourceVoxelSize;
+  bool refined = false;
   for (int i = 0;
        i < kMaxRefinements && params.matcher.minSegmentPoints > 0 &&
        seg.points.size() < params.matcher.minSegmentPoints && seg.points.size() < raw.size();
@@ -254,6 +255,20 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
       break;
     }
     seg.points = std::move(finer);
+    refined = true;
+  }
+
+  // Halving a cell roughly quadruples the count, so a segment that started
+  // just under the floor lands far above it, and the window ends up holding
+  // segments of wildly different density. Thin a refined segment back to
+  // about the floor so every one of them carries a comparable amount, which
+  // is what the floor was for in the first place. A segment that was already
+  // above the floor never took this path and is left exactly as it was.
+  if (refined && seg.points.size() > params.matcher.minSegmentPoints) {
+    const auto stride = static_cast<int>(seg.points.size() / params.matcher.minSegmentPoints);
+    if (stride > 1) {
+      seg.points = CtMapMatcher::downsample(raw, cell, stride);
+    }
   }
 
   if (!seg.points.empty()) {
