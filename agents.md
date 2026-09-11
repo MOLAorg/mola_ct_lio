@@ -388,6 +388,18 @@ LIO work took `<mission>_hesai_undist.bag`. Upstream also publishes
 mission's full set: `COLUMNS=250 klein list files -p GrandTourDataset -m
 release_<mission>`.
 
+Downloading them needs kleinkram 0.60.0 or newer. An older client reports
+`AccessDenied` on every file, which reads like an expired token and is not:
+the server's actual reply is `Invalid UUID, 400`, an API mismatch the client
+mislabels. `~/kleinkram-venv/bin/pip install -U kleinkram` is the fix, and
+files download by id rather than by name.
+
+The raw stream is `/boxi/hesai/points`, with fields `x y z intensity ring
+timestamp`, the timestamp a float64 spanning 0.0996 s across a scan: real
+per-point timing over a full sweep, about 37000 points per scan. Our reader
+normalizes it and reports `per-point relative`, so a segment can be a fraction
+of a sweep again.
+
 This matters more than a convenience. Everything below about segment
 degeneracy follows from the provider having collapsed each scan to one
 instant; raw scans carry their own per-point timing and uncorrected geometry,
