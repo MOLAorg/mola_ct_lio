@@ -241,27 +241,29 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
   seg.points =
     CtMapMatcher::downsample(raw, params.matcher.sourceVoxelSize, params.matcher.sourceVoxelStride);
 
-  // A segment that came out short is re-decimated on a finer cell until it
-  // clears the floor, the cell stops helping, or the attempts run out. A
-  // segment already above the floor never enters this path, so the sequences
-  // this corpus already handles well are left exactly as they were.
+  // A segment that came out short is re-decimated on a finer cell. The cell
+  // is estimated rather than searched: a LiDAR sweep samples surfaces, so the
+  // occupied-cell count grows roughly as the inverse square of the cell size,
+  // and one pass of arithmetic gets close enough that a single retry settles
+  // it. Searching by repeated halving costs a full pass over the raw points
+  // each time and overshoots the target fourfold when it lands.
   //
-  // The step is gentle on purpose. Halving a cell roughly quadruples the
-  // count, so a segment starting just below the floor lands far above it and
-  // the window ends up holding segments of very different density. Thinning
-  // the result back with a stride is worse still: the voxel keys are ordered
-  // lexicographically, so taking every Nth of them walks one axis fastest and
-  // removes whole runs along it, which samples the scene anisotropically
-  // rather than uniformly. Approaching the floor from below keeps the
-  // sampling even.
-  constexpr int kMaxRefinements = 8;
-  constexpr double kCellStep = 0.8;
+  // A segment already above the floor never enters this path, so the
+  // sequences this corpus handles well are left exactly as they were.
+  constexpr int kMaxRefinements = 3;
   double cell = params.matcher.sourceVoxelSize;
   for (int i = 0;
        i < kMaxRefinements && params.matcher.minSegmentPoints > 0 &&
        seg.points.size() < params.matcher.minSegmentPoints && seg.points.size() < raw.size();
        i++) {
-    cell *= kCellStep;
+    const double have = static_cast<double>(std::max<std::size_t>(1, seg.points.size()));
+    const double want = static_cast<double>(params.matcher.minSegmentPoints);
+
+    // Aim slightly past the target, since the inverse-square rule is an
+    // approximation and undershooting costs another pass.
+    const double shrink = std::clamp(std::sqrt(have / want) * 0.95, 0.2, 0.95);
+    cell *= shrink;
+
     auto finer = CtMapMatcher::downsample(raw, cell, params.matcher.sourceVoxelStride);
     if (finer.size() <= seg.points.size()) {
       break;
