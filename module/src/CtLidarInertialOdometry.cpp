@@ -175,7 +175,7 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
         d.inliers, d.chi2, d.segmentPoints, d.iterations, d.converged ? 1 : 0,
         d.stepWasLimited ? 1 : 0, d.priorTrace, d.priorGradientNorm, d.lidarPositionInfo,
         d.imuPositionInfo, d.priorPositionInfo, d.lidarChi2, d.lidarDof, d.lidarScale,
-        d.starved ? 1 : 0);
+        d.starved ? 1 : 0, d.imuCoverage);
     }
     publishPose(t, toMrptPose(pose));
   };

@@ -872,3 +872,16 @@ cannot currently be mapped back to `alpha`. Using it needs a small upstream
 - A per-point time field can be present and useless: MRPT holds those as
   `float`, and an absolute Unix time near 1.7e9 quantizes a whole sweep onto
   one value. Check the span covers several representable steps of the field.
+
+## A note on editing this file's C++ by pattern match
+
+`clang-format` rewraps argument lists, so a patch that matches on a multi-line
+call can silently fail to apply while a matching change to the format string
+succeeds. That happened here: the state dump grew a `%.4f` for `imuCoverage`
+whose argument was never passed, so the column read zero on every run,
+including healthy ones, and briefly looked like evidence that no segment had
+any inertial coverage at all. A printf conversion with no argument is
+undefined behavior, not merely a wrong number.
+
+If a diagnostic reads exactly zero everywhere, including where it cannot be,
+check that it is being passed before believing it.
