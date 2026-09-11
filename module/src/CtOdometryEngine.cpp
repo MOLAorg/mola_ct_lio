@@ -56,6 +56,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("gyro_noise_density", params.gyroNoiseDensity);
   readDouble("accel_noise_density", params.accelNoiseDensity);
   readBool("relinearize_each_slide", params.relinearizeEachSlide);
+  readDouble("segment_phase_offset", params.segmentPhaseOffset);
 
   readInt("max_iterations", params.optimizer.maxIterations);
   readInt("rematch_every", params.optimizer.rematchEvery);
@@ -175,6 +176,17 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
   }
 
   seg.points = CtMapMatcher::downsample(raw, params.matcher.sourceVoxelSize);
+
+  if (!seg.points.empty()) {
+    double lowest = seg.points.front().alpha;
+    double highest = lowest;
+    for (const auto & sp : seg.points) {
+      lowest = std::min(lowest, sp.alpha);
+      highest = std::max(highest, sp.alpha);
+    }
+    seg.alphaSpread = highest - lowest;
+  }
+
   return seg;
 }
 
@@ -256,7 +268,16 @@ void CtOdometryEngine::closeReadySegments(double latestPointTime)
 {
   while (true) {
     const double tBegin = knots_.back().t;
-    const double tEnd = tBegin + params.segmentInterval;
+
+    // The very first segment is cut short by the phase offset, and every one
+    // after it is a full interval. Shifting the whole grid earlier instead
+    // would put the anchor knot before any data ever arrived, which leaves the
+    // origin pose describing an instant nothing was measured at.
+    const bool isFirstSegment = segments_.empty();
+    const double thisInterval = isFirstSegment
+                                  ? (1.0 - params.segmentPhaseOffset) * params.segmentInterval
+                                  : params.segmentInterval;
+    const double tEnd = tBegin + thisInterval;
 
     // A segment can only be closed once data beyond its end has arrived, or
     // its last points would be missing.
@@ -372,6 +393,7 @@ void CtOdometryEngine::emitOldest()
   d.inliers = lastResult_.inliers;
   d.mapPoints = matcher_.pointCount();
   d.segmentPoints = segments_[0].points.size();
+  d.alphaSpread = segments_[0].alphaSpread;
   d.velocity = knots_[0].state.v;
   d.biasAcc = knots_[0].state.biasAcc;
   d.biasGyro = knots_[0].state.biasGyro;

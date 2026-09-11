@@ -37,6 +37,14 @@ namespace
 /// How many observations may go by with no scan before it is worth saying so.
 constexpr std::size_t kObservationsBeforeComplaining = 2000;
 
+/// How many segments to watch before judging whether their points span enough
+/// of each segment for the interpolation to be identifiable.
+constexpr std::size_t kSegmentsBeforeJudgingSpread = 200;
+
+/// Below this fraction of a segment, the points are effectively all at one
+/// instant and the segment's end knot gets no LiDAR information.
+constexpr double kUsableAlphaSpread = 0.1;
+
 /** Opens a diagnostic stream named by an environment variable, or returns
  * null. These exist so that the inertial path can be checked against a
  * ground-truth trajectory instead of assumed correct: a wrong extrinsic or a
@@ -130,6 +138,25 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
 
   engine_->onPose = [this](
                       double t, const ct::SE3 & pose, const CtOdometryEngine::Diagnostics & d) {
+    if (d.alphaSpread < kUsableAlphaSpread) {
+      degenerate_segments_++;
+    }
+    if (
+      ++segments_seen_ == kSegmentsBeforeJudgingSpread && !warned_degenerate_segments_ &&
+      degenerate_segments_ * 2 > segments_seen_) {
+      warned_degenerate_segments_ = true;
+      MRPT_LOG_WARN_STREAM(
+        "Most segments so far hold points spanning under "
+        << kUsableAlphaSpread
+        << " of their own interval, so the continuous-time interpolation has "
+           "nothing to fit and each segment's end knot gets no LiDAR information. "
+           "This happens when the clouds arrive already motion-compensated, since "
+           "every point of a scan then shares one instant: a segment holding a "
+           "single scan collapses to one alpha. Raise 'segment_interval' to an "
+           "integer multiple of the scan period so each segment spans at least "
+           "two scans. It drifts rather than fails, so nothing else will say so.");
+    }
+
     if (state_dump_) {
       *state_dump_ << mrpt::format(
         "%.6f %.4f %.4f %.4f %.4f %.4f %.4f %.6f %.6f %.6f %.6f %.6f %.6f %zu %.4e %zu %d %d "

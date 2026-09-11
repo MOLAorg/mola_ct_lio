@@ -137,6 +137,13 @@ private:
   std::size_t scans_processed_ = 0;
   std::size_t observations_seen_ = 0;
   bool warned_no_scans_ = false;
+
+  /// Segments whose points span too little of their own interval for the
+  /// continuous-time interpolation to be identifiable, counted over the first
+  /// few hundred so the run can say so once rather than silently drift.
+  std::size_t segments_seen_ = 0;
+  std::size_t degenerate_segments_ = 0;
+  bool warned_degenerate_segments_ = false;
   double last_map_publish_ = 0;
 
   mutable std::mutex trajectory_mtx_;

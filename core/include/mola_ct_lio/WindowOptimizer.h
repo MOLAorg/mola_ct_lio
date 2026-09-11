@@ -70,6 +70,17 @@ struct Segment
 
   PreintegratedImu imu;
   bool hasImu = false;
+
+  /** How much of the segment the points actually span, as a fraction.
+   *
+   * A continuous-time segment can only fit an interpolation if its points
+   * carry distinct times. When a provider hands over clouds it has already
+   * motion-compensated, every point of a scan shares one instant, and a
+   * segment holding a single scan collapses to one alpha: its end knot then
+   * receives no LiDAR information whatsoever. Nothing about that fails
+   * loudly, so it is worth measuring.
+   */
+  double alphaSpread = 0;
 };
 
 /** Supplies the correspondences of one segment against the map.

@@ -28,6 +28,7 @@ fallback_scan_period: 0.1
 # makes this continuous-time rather than scan-to-map.
 segment_interval: ${CTLIO_SEG_INTERVAL|0.04}
 knot_count: ${CTLIO_KNOT_COUNT|4}
+segment_phase_offset: ${CTLIO_SEG_PHASE|0.0}
 
 # --- solver ---
 max_iterations: ${CTLIO_MAX_ITERS|25}

@@ -66,6 +66,19 @@ public:
     /// parameter rather than a decision.
     bool relinearizeEachSlide = false;
 
+    /// Where in a segment the first scan is made to land, as a fraction of
+    /// the segment. The LiDAR information of a point at alpha splits between
+    /// the two knots as (1 - alpha) and alpha, so a scan sitting exactly on a
+    /// segment boundary gives the end knot nothing. That costs little when the
+    /// points of a scan spread across the segment anyway, and everything when
+    /// a provider has already motion-compensated them and they all share one
+    /// instant. Half a segment puts an undivided scan squarely between its two
+    /// knots. [fraction of segment_interval]
+    /// Zero keeps the grid anchored on the first measurement, which is what
+    /// a scan whose points already span the segment wants. It is only worth
+    /// moving for a provider that hands over one instant per scan.
+    double segmentPhaseOffset = 0.0;
+
     double accelNoiseDensity = 2.0e-3;
 
     ct::WindowOptimizer::Params optimizer;
@@ -89,6 +102,9 @@ public:
     std::size_t inliers = 0;
     std::size_t mapPoints = 0;
     std::size_t segmentPoints = 0;
+
+    /// See Segment::alphaSpread.
+    double alphaSpread = 0;
     ct::Vec3 velocity = ct::Vec3::Zero();
     ct::Vec3 biasAcc = ct::Vec3::Zero();
     ct::Vec3 biasGyro = ct::Vec3::Zero();

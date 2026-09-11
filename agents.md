@@ -52,6 +52,7 @@ table in sync when adding a parameter.
 | `relinearize_each_slide` | `CTLIO_RELIN` | false | false / true | whether a knot's Jacobian point follows the estimate or is held from its first marginalization |
 | `bias_prior_sigma_acc` | `CTLIO_BIAS_PRIOR_ACC` | 0.3 m/s^2 | 0.1 - 1.0 | absolute bound on the accel bias; the random walk alone leaves it unbounded. 0 disables |
 | `bias_prior_sigma_gyro` | `CTLIO_BIAS_PRIOR_GYRO` | 0.02 rad/s | 0.005 - 0.05 | same for the gyro bias |
+| `segment_phase_offset` | `CTLIO_SEG_PHASE` | 0.0 | 0.0 - 0.5 | where in a segment the first scan lands. Only worth moving when a provider gives one instant per scan |
 | `twist_continuity_weight` | `CTLIO_TWIST_W` | 2.0 | 0 - 10 | LiDAR-only only; ignored once IMU factors are present |
 
 ### Residual weighting
@@ -217,16 +218,41 @@ below.
 ## Pre-deskewed clouds make the continuous-time model degenerate
 
 With `clouds_already_deskewed`, every point of a scan carries one timestamp,
-because the geometry does belong to one instant. At `segment_interval: 0.1`
-against a 10 Hz sensor that means one scan per segment and a single alpha, so
-the interpolation has nothing to interpolate: the end knot of each segment
-receives no LiDAR information at all, and its velocity is set by the inertial
-term and the prior alone. Scan jitter across a boundary also leaves some
-segments empty outright.
+because the geometry does belong to one instant. The LiDAR information of a
+point at `alpha` splits between the segment's two knots as `(1 - alpha)` and
+`alpha`, so a scan sitting on a segment boundary gives the end knot nothing at
+all, and a segment holding a single scan has no second alpha to fit an
+interpolation to. Scan jitter across a boundary also leaves some segments
+empty outright: on grand-tour the median segment holds 866 points against
+Oxford's 12000, and some hold none.
 
-Only the undistorted topic exists in these bags, so the fix is a segment long
-enough to span several scans and recover distinct alphas. That makes
-`segment_interval` dataset-dependent rather than a universal default.
+Only the undistorted topic exists in these bags, so the sensor's own per-point
+timing is gone and cannot be recovered. Two ways out, neither free:
+
+- **A longer segment**, spanning several scans. Sharply non-monotonic, and it
+  has to be an integer multiple of the scan period: on grand-tour 2024-11-02,
+  0.10 s gives 545 m, 0.15 s (alternating one and two scans) gives 2024 m,
+  0.20 s gives 2.44 m, 0.30 s gives 13.5 m and 0.50 s gives 23000 m, the last
+  because constant twist stops holding over that long an interval. But 0.20 s
+  takes the *other* mission from 2.92 m to 15.6 m, so it is not a safe default.
+- **`segment_phase_offset`**, centering an undivided scan between its two
+  knots without lengthening the segment. Costs nothing in principle where the
+  points already span the segment, but it measurably degrades the synthetic
+  IMU-rescue case, so it defaults to off and is opt-in per dataset.
+
+The first segment is the one shortened by the phase offset. Shifting the whole
+grid earlier instead would put the anchor knot before any data arrived, which
+leaves the origin pose describing an instant nothing was measured at.
+
+## Map and source resolution are not the bottleneck
+
+Worth recording as a dead end. The reference method decimates to 0.10 m for
+matching and 0.15 m for the map against this package's 0.4 m, which looked
+like an obvious explanation for a 20x drift gap. It is not: on obsq-01,
+0.4/0.4 gives 1.456 m, 0.2/0.2 gives 1.607 m, 0.15/0.15 gives 1.668 m and
+0.10/0.15 gives 1.492 m. Everything lands within noise of everything else, at
+several times the cost. Whatever the remaining gap is, it is structural rather
+than a sampling density.
 
 ## The LiDAR/IMU weighting, and why the default is not the datasheet figure
 
