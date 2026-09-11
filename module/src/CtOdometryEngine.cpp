@@ -242,46 +242,31 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
     CtMapMatcher::downsample(raw, params.matcher.sourceVoxelSize, params.matcher.sourceVoxelStride);
 
   // A segment that came out short is re-decimated on a finer cell until it
-  // clears the floor, the cell stops helping, or the retries run out. A
-  // segment already above the floor never reaches here, so the sequences this
-  // corpus already handles well are left exactly as they were.
-  constexpr int kMaxRefinements = 3;
+  // clears the floor, the cell stops helping, or the attempts run out. A
+  // segment already above the floor never enters this path, so the sequences
+  // this corpus already handles well are left exactly as they were.
+  //
+  // The step is gentle on purpose. Halving a cell roughly quadruples the
+  // count, so a segment starting just below the floor lands far above it and
+  // the window ends up holding segments of very different density. Thinning
+  // the result back with a stride is worse still: the voxel keys are ordered
+  // lexicographically, so taking every Nth of them walks one axis fastest and
+  // removes whole runs along it, which samples the scene anisotropically
+  // rather than uniformly. Approaching the floor from below keeps the
+  // sampling even.
+  constexpr int kMaxRefinements = 8;
+  constexpr double kCellStep = 0.8;
   double cell = params.matcher.sourceVoxelSize;
-  bool refined = false;
   for (int i = 0;
        i < kMaxRefinements && params.matcher.minSegmentPoints > 0 &&
        seg.points.size() < params.matcher.minSegmentPoints && seg.points.size() < raw.size();
        i++) {
-    cell *= 0.5;
+    cell *= kCellStep;
     auto finer = CtMapMatcher::downsample(raw, cell, params.matcher.sourceVoxelStride);
     if (finer.size() <= seg.points.size()) {
       break;
     }
     seg.points = std::move(finer);
-    refined = true;
-  }
-
-  // Halving a cell roughly quadruples the count, so a segment that started
-  // just under the floor lands far above it, and the window ends up holding
-  // segments of wildly different density. Thin a refined segment back to
-  // about the floor so every one of them carries a comparable amount, which
-  // is what the floor was for in the first place. A segment that was already
-  // above the floor never took this path and is left exactly as it was.
-  if (refined && seg.points.size() > params.matcher.minSegmentPoints) {
-    const auto stride = static_cast<int>(seg.points.size() / params.matcher.minSegmentPoints);
-    if (stride > 1) {
-      seg.points = CtMapMatcher::downsample(raw, cell, stride);
-    }
-  }
-
-  if (!seg.points.empty()) {
-    double lowest = seg.points.front().alpha;
-    double highest = lowest;
-    for (const auto & sp : seg.points) {
-      lowest = std::min(lowest, sp.alpha);
-      highest = std::max(highest, sp.alpha);
-    }
-    seg.alphaSpread = highest - lowest;
   }
 
   return seg;
