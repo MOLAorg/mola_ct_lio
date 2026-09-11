@@ -930,3 +930,23 @@ undefined behavior, not merely a wrong number.
 
 If a diagnostic reads exactly zero everywhere, including where it cannot be,
 check that it is being passed before believing it.
+
+## What the residual actually tracks
+
+The per-window reduced chi-square of the LiDAR block is **motion-driven**, not
+density-driven. Across four missions its logarithm correlates +0.48 to +0.72
+with speed and +0.46 to +0.68 with acceleration, while segment point count and
+inlier count correlate |r| <= 0.36 and usually under 0.1.
+
+In the worst 2.5% of windows the translational information *per correspondence*
+falls 13x to 23x while the correspondence count, the segment density and the
+inlier ratio all stay within 4% of normal. So a bad window is not a sparse one:
+the same number of matches simply carry far less information each.
+
+This matters because the balance reacts to that chi-square. Down-weighting the
+whole LiDAR block during fast motion is only correct if the geometry really is
+worse there; if the residual grew because the prediction did, it is backwards.
+`lidarCond` and `lidarWeakest` in the state dump exist to separate the two:
+`lidarCond` is the smallest-over-largest eigenvalue of the window's summed
+translational information, so a view that pins position only within a plane
+collapses it while leaving the correspondence count untouched.

@@ -15,6 +15,7 @@
  */
 #include <mola_ct_lio/WindowOptimizer.h>
 
+#include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cmath>
 
@@ -189,6 +190,11 @@ void WindowOptimizer::assemble(
   result.priorPositionInfo = 0;
   result.lidarChi2 = 0;
 
+  // The window's translational information, summed over knots. Translation
+  // increments live in the world frame under this parameterization, so the
+  // knots' blocks share an axis convention and adding them is meaningful.
+  Mat3 lidarPositionBlock = Mat3::Zero();
+
   // Sums the position diagonal of a factor's Hessian over the knots it spans.
   const auto positionInfoOf = [](const auto & H, int knotsSpanned, int strideInBlock) {
     double sum = 0;
@@ -229,9 +235,27 @@ void WindowOptimizer::assemble(
     lidarSystem_.addPosePairBlock(static_cast<int>(k), blk.H, blk.g);
 
     result.lidarPositionInfo += positionInfoOf(blk.H, 2, 6);
+    for (int j = 0; j < 2; j++) {
+      const int r = j * 6 + kIdxPosition;
+      lidarPositionBlock += blk.H.block<3, 3>(r, r);
+    }
     result.lidarChi2 += blk.chi2;
     result.errorSum += blk.errorSum;
     result.inliers += blk.inliers;
+  }
+
+  // How evenly the geometry constrains the three translational axes. A view
+  // that pins the position only within a plane, or only along a line, leaves
+  // the correspondence count untouched while collapsing this, which is what
+  // separates an uninformative view from a sparse one.
+  {
+    const Eigen::SelfAdjointEigenSolver<Mat3> eig(lidarPositionBlock);
+    const Vec3 lambda = eig.eigenvalues();
+    const double largest = lambda(2);
+    const double smallest = lambda(0);
+    result.lidarPositionWeakest = std::max(0.0, smallest);
+    result.lidarPositionConditioning = largest > 0 ? std::clamp(smallest / largest, 0.0, 1.0) : 0.0;
+    result.lidarWeakDirection = eig.eigenvectors().col(0);
   }
 
   // Each correspondence supplies three residuals, and the window's own pose

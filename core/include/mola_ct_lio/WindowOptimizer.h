@@ -301,6 +301,19 @@ public:
     /// What this window alone asked for, before smoothing. A large gap
     /// between the two is a window the balance declined to follow.
     double lidarScaleInstant = 1.0;
+
+    /// Conditioning of the LiDAR block's translational information, as the
+    /// ratio of its smallest to its largest eigenvalue over the window.
+    /// A geometry that constrains the position only within a plane or along
+    /// a line drives this to zero while leaving the correspondence count
+    /// untouched, so it separates a weak view from a sparse one.
+    double lidarPositionConditioning = 1.0;
+
+    /// The weakest translational direction's own information, in the same
+    /// units as lidarPositionInfo, and the world-frame axis it points along.
+    /// [m^-2]
+    double lidarPositionWeakest = 0;
+    Vec3 lidarWeakDirection = Vec3::Zero();
   };
 
   /** Runs the optimization in place.

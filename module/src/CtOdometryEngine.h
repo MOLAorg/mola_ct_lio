@@ -170,6 +170,8 @@ public:
     double lidarChi2 = 0;
     double lidarDof = 0;
     double lidarScale = 1.0;
+    double lidarPositionConditioning = 1.0;
+    double lidarPositionWeakest = 0;
   };
 
   /// Called once per knot, when it leaves the window.

@@ -547,6 +547,8 @@ void CtOdometryEngine::emitOldest()
   d.lidarChi2 = lastResult_.lidarChi2;
   d.lidarDof = lastResult_.lidarDof;
   d.lidarScale = lastResult_.lidarScale;
+  d.lidarPositionConditioning = lastResult_.lidarPositionConditioning;
+  d.lidarPositionWeakest = lastResult_.lidarPositionWeakest;
 
   onPose(knots_[0].t, knots_[0].state.T, d);
   knotsEmitted_++;
