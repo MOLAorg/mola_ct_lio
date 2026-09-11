@@ -59,7 +59,11 @@ max_step_velocity: ${CTLIO_MAX_STEP_V|2.0}
 lidar_balance: ${CTLIO_LIDAR_BALANCE|TwoSided}
 lidar_balance_max_scale: ${CTLIO_LIDAR_BALANCE_MAX|1000.0}
 lidar_balance_min_dof: ${CTLIO_BALANCE_MIN_DOF|200}
-lidar_balance_smoothing: ${CTLIO_BALANCE_SMOOTH|0.05}
+lidar_balance_smoothing: ${CTLIO_BALANCE_SMOOTH|0.0}
+# Bounds how far one window's residuals may pull the balance down, as a
+# multiple of the running median. One-sided on purpose, see WindowOptimizer.h.
+lidar_balance_outlier_ratio: ${CTLIO_BALANCE_OUTLIER|0.0}
+lidar_balance_baseline_windows: ${CTLIO_BALANCE_BASELINE|100}
 starvation_ratio: ${CTLIO_STARVATION|0.0}
 # A segment whose points carry their own capture times is ready to close a
 # whole sweep before the inertial samples spanning it arrive. Waiting costs

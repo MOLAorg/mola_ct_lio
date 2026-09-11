@@ -269,6 +269,17 @@ void WindowOptimizer::assemble(
       kappa = std::max(1.0, kappa);
     }
 
+    // A spike is bounded against what this sequence has recently looked like,
+    // rather than against an absolute figure: the residual level is a
+    // property of the scene, and only its sudden departures are suspect. The
+    // bound is one-sided, see the parameter's documentation.
+    if (params.lidarBalanceOutlierRatio > 0 && kappa > 0 && std::isfinite(kappa)) {
+      const double baseline = kappaBaseline();
+      if (baseline > 0) {
+        kappa = std::min(kappa, params.lidarBalanceOutlierRatio * baseline);
+      }
+    }
+
     const double maxScale = std::max(1.0, params.lidarBalanceMaxScale);
     if (kappa > 0 && std::isfinite(kappa)) {
       result.lidarScaleInstant = std::clamp(1.0 / kappa, 1.0 / maxScale, maxScale);
@@ -475,7 +486,40 @@ WindowOptimizer::Result WindowOptimizer::optimize(
                             : result.lidarScaleInstant;
   }
 
+  // The baseline the clamp is measured against records what the window asked
+  // for, not what it was allowed, so that a long stretch of genuinely harder
+  // scenes still moves the baseline and the clamp follows it.
+  if (params.lidarBalanceOutlierRatio > 0 && result.lidarDof > 0) {
+    const double kappa = result.lidarChi2 / result.lidarDof;
+    const auto capacity = static_cast<std::size_t>(std::max(1, params.lidarBalanceBaselineWindows));
+    if (kappa > 0 && std::isfinite(kappa)) {
+      if (recentKappa_.size() < capacity) {
+        recentKappa_.push_back(kappa);
+      } else {
+        recentKappa_[recentKappaNext_ % capacity] = kappa;
+      }
+      recentKappaNext_++;
+    }
+  }
+
   return result;
+}
+
+/** Median of the recent per-window reduced chi-squares. A median rather than a
+ * mean because the sequence it summarizes is exactly the one whose outliers
+ * the clamp exists to reject. Zero until the buffer holds enough windows for
+ * the median to mean anything.
+ */
+double WindowOptimizer::kappaBaseline() const
+{
+  constexpr std::size_t kMinWindowsForBaseline = 20;
+  if (recentKappa_.size() < kMinWindowsForBaseline) {
+    return 0;
+  }
+  std::vector<double> sorted = recentKappa_;
+  const auto middle = sorted.begin() + static_cast<std::ptrdiff_t>(sorted.size() / 2);
+  std::nth_element(sorted.begin(), middle, sorted.end());
+  return *middle;
 }
 
 }  // namespace mola::ct

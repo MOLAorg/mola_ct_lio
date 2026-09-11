@@ -18,6 +18,7 @@
 #include <mola_ct_lio/CtNormalEquations.h>
 #include <mola_ct_lio/WindowSystem.h>
 
+#include <cstddef>
 #include <functional>
 #include <vector>
 
@@ -236,7 +237,29 @@ public:
     /// arc-3, the scale drops from 339 to 11 across two windows whose point
     /// counts and inlier counts are entirely normal, and the trajectory moves
     /// 1.5 m while the platform stands still.
-    double lidarBalanceSmoothing = 0.05;
+    double lidarBalanceSmoothing = 0.0;
+
+    /// How far above its own recent baseline a window's reduced chi-square is
+    /// allowed to carry, as a multiple of the running median. Zero disables
+    /// the clamp.
+    ///
+    /// This bounds the balance's response from one side only. A window whose
+    /// residuals are unusually *small* is followed at once, because that is
+    /// the geometry earning authority. A window whose residuals spike is
+    /// followed only up to this multiple, because the estimator cannot tell a
+    /// scene that really did get harder from a transient it will recover from
+    /// in two windows, and the cost of the two mistakes is not symmetric:
+    /// under-weighting good geometry loses the correction that would have
+    /// kept the trajectory, while over-weighting bad geometry is what the
+    /// robust kernel already guards.
+    ///
+    /// Preferred over `lidarBalanceSmoothing`, which delays the response in
+    /// both directions and so pays on sequences whose balance is tracking
+    /// something real.
+    double lidarBalanceOutlierRatio = 0.0;
+
+    /// How many recent windows the running median above is taken over.
+    int lidarBalanceBaselineWindows = 100;
 
     /// Uncertainty of an external odometry's relative motion over one
     /// segment. Zero on either disables that half, which is the default: the
@@ -342,6 +365,14 @@ private:
   /// The balance as it stands, carried across windows. Zero until the first
   /// window that can estimate it.
   double smoothedLidarScale_ = 0;
+
+  /// Recent per-window reduced chi-squares, oldest first, for the running
+  /// median the outlier clamp is measured against.
+  std::vector<double> recentKappa_;
+  std::size_t recentKappaNext_ = 0;
+
+  /// Median of `recentKappa_`, or zero while too few windows have been seen.
+  double kappaBaseline() const;
 
   /// The LiDAR contributions alone, kept apart so that they can be rescaled
   /// as a block once their residuals are known, before joining the rest.

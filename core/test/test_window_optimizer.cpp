@@ -329,3 +329,84 @@ TEST(WindowOptimizer, IsBitwiseRepeatable)
     EXPECT_EQ(a[i].state.v, b[i].state.v);
   }
 }
+
+namespace
+{
+/** Like perfectMatcher, but scatters the map points, which raises the
+ * window's residuals without touching its correspondence count. The scatter
+ * is per point and deterministic, so it cannot be absorbed by moving the
+ * knots the way a common offset could.
+ */
+MatchFunction noisyMatcher(const World & w, double sigma, uint32_t seed)
+{
+  return [&w, sigma, seed](
+           std::size_t segmentIndex, const CtSegment &, const std::vector<SegmentPoint> & points,
+           std::vector<PointCorrespondence> & out) {
+    std::mt19937 rng(seed + static_cast<uint32_t>(segmentIndex));
+    std::normal_distribution<double> g(0.0, sigma);
+    const auto & mapPoints = w.mapPoints[segmentIndex];
+    for (std::size_t i = 0; i < points.size(); i++) {
+      PointCorrespondence c;
+      c.localIndex = static_cast<uint32_t>(i);
+      c.globalPoint = mapPoints[i] + Vec3(g(rng), g(rng), g(rng));
+      c.information = Mat3::Identity();
+      out.push_back(c);
+    }
+  };
+}
+
+/** Runs a run of ordinary windows to establish a baseline, then one window
+ * whose residuals are inflated, and reports the balance the latter received.
+ */
+double scaleAfterASpike(double outlierRatio, double spikeSigma)
+{
+  constexpr double kOrdinarySigma = 0.02;
+
+  std::mt19937 rng(31);
+  const World reference = makeWorld(rng, 4, 400, false);
+
+  WindowOptimizer::Params p;
+  p.useImu = false;
+  p.twistContinuityWeight = 0.0;
+  p.kernel = RobustKernel::None;
+  p.maxIterations = 4;
+  p.lidarBalance = LidarBalance::TwoSided;
+  p.lidarBalanceMinDof = 1.0;
+  p.lidarBalanceOutlierRatio = outlierRatio;
+
+  WindowOptimizer opt(p);
+  WindowOptimizer::Result last;
+  for (int i = 0; i < 40; i++) {
+    World w = reference;
+    last = opt.optimize(
+      w.knots, w.segments, noisyMatcher(w, kOrdinarySigma, static_cast<uint32_t>(i)),
+      MarginalizationPrior{});
+  }
+
+  World w = reference;
+  last =
+    opt.optimize(w.knots, w.segments, noisyMatcher(w, spikeSigma, 900), MarginalizationPrior{});
+  return last.lidarScale;
+}
+}  // namespace
+
+TEST(WindowOptimizer, TheBalanceDoesNotFollowAResidualSpikeAllTheWay)
+{
+  const double unclamped = scaleAfterASpike(0.0, 0.4);
+  const double clamped = scaleAfterASpike(3.0, 0.4);
+
+  EXPECT_GT(unclamped, 0.0);
+  EXPECT_GT(clamped, unclamped)
+    << "the clamp exists to keep a spike from taking the whole balance with it";
+}
+
+TEST(WindowOptimizer, TheBalanceStillFollowsAResidualDropAtOnce)
+{
+  // A window better than its own baseline is not an outlier, so the clamp,
+  // which bounds one side only, must leave it exactly as it found it.
+  const double unclamped = scaleAfterASpike(0.0, 0.005);
+  const double clamped = scaleAfterASpike(3.0, 0.005);
+
+  EXPECT_GT(unclamped, 0.0);
+  EXPECT_DOUBLE_EQ(clamped, unclamped);
+}
