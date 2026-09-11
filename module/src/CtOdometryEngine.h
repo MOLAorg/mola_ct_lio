@@ -67,15 +67,15 @@ public:
     bool relinearizeEachSlide = false;
 
     /// A segment holding this fraction of what recent segments held is
-    /// treated as starved, and is not inserted into the map.
+    /// withheld from the map, on the reasoning that its pose is poorly
+    /// determined and its points would mislead every scan that follows.
     ///
-    /// A segment registered on very little geometry has a poorly determined
-    /// pose, and inserting its points at that pose puts bad geometry in front
-    /// of every scan that follows: a brief loss of returns becomes permanent.
-    /// The comparison has to be relative rather than an absolute count, since
-    /// what counts as few points differs by an order of magnitude between
-    /// datasets and even between missions of one dataset. Zero disables.
-    double starvationRatio = 0.25;
+    /// Off by default, because measuring it says the reasoning is wrong: the
+    /// points are worth more than the pose error they carry. Withholding them
+    /// costs a healthy mission a factor of seven (0.022 m to 0.149 m) and
+    /// makes both of the missions it was built for worse. Kept, disabled, so
+    /// the measurement is not lost and the idea is not tried again blind.
+    double starvationRatio = 0.0;
 
     /// Where in a segment the first scan is made to land, as a fraction of
     /// the segment. The LiDAR information of a point at alpha splits between

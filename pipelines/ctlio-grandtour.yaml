@@ -57,7 +57,7 @@ max_step_translation: ${CTLIO_MAX_STEP|1.0}
 lidar_balance: ${CTLIO_LIDAR_BALANCE|TwoSided}
 lidar_balance_max_scale: ${CTLIO_LIDAR_BALANCE_MAX|1000.0}
 lidar_balance_min_dof: ${CTLIO_BALANCE_MIN_DOF|200}
-starvation_ratio: ${CTLIO_STARVATION|0.25}
+starvation_ratio: ${CTLIO_STARVATION|0.0}
 bias_prior_sigma_acc: ${CTLIO_BIAS_PRIOR_ACC|0.3}
 bias_prior_sigma_gyro: ${CTLIO_BIAS_PRIOR_GYRO|0.02}
 kernel: ${CTLIO_KERNEL|Cauchy}

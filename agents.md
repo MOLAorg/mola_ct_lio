@@ -52,7 +52,7 @@ table in sync when adding a parameter.
 | `relinearize_each_slide` | `CTLIO_RELIN` | false | false / true | whether a knot's Jacobian point follows the estimate or is held from its first marginalization |
 | `bias_prior_sigma_acc` | `CTLIO_BIAS_PRIOR_ACC` | 0.3 m/s^2 | 0.1 - 1.0 | absolute bound on the accel bias; the random walk alone leaves it unbounded. 0 disables |
 | `bias_prior_sigma_gyro` | `CTLIO_BIAS_PRIOR_GYRO` | 0.02 rad/s | 0.005 - 0.05 | same for the gyro bias |
-| `starvation_ratio` | `CTLIO_STARVATION` | 0.25 | 0.1 - 0.5 | a segment holding this fraction of the recent average is held out of the map. 0 disables |
+| `starvation_ratio` | `CTLIO_STARVATION` | 0 (off) | 0 - 0.5 | a segment holding this fraction of the recent average is held out of the map. 0 disables |
 | `lidar_balance_min_dof` | `CTLIO_BALANCE_MIN_DOF` | 200 | 50 - 1000 | degrees of freedom the LiDAR block needs before its reduced chi-square is acted on |
 | `segment_phase_offset` | `CTLIO_SEG_PHASE` | 0.0 | 0.0 - 0.5 | where in a segment the first scan lands. Only worth moving when a provider gives one instant per scan |
 | `lidar_balance` | `CTLIO_LIDAR_BALANCE` | None | None, DownOnly, TwoSided | reconciles the LiDAR block's weight with its own residuals, see below |
@@ -295,25 +295,40 @@ occasional segments arriving nearly empty, and nothing in the estimator
 currently treats such a segment differently from a full one. Four of the ten
 are at or below 0.052 m, so the machinery is right when it is fed.
 
-## Two ways a starved segment used to do lasting damage
+## Withholding a starved segment from the map makes things worse
 
-Both follow from the measurement above, and neither was guarded:
+Worth recording as a dead end, since the reasoning is appealing. A segment
+registered on very little geometry has a poorly determined pose, so its points
+enter the map at that pose in front of every scan that follows; holding it out
+should stop a brief loss of returns becoming a lasting one. Measured, it does
+the opposite:
 
-- **The map.** A segment registered on very little geometry has a poorly
-  determined pose, and its points went into the map at that pose, in front of
-  every scan that followed. `starvation_ratio` holds such a segment out. The
-  test has to be relative to a slow average of recent segments rather than an
-  absolute count, since what counts as few points differs by an order of
-  magnitude between missions of the same dataset: 2024-11-18-13-22-14's
-  *median* is 458 points, which is another mission's starvation. The average
-  tracks starved segments too, so a run that genuinely thins out has the bar
-  come down with it rather than rejecting everything from then on.
-- **The balance.** It only required three correspondences before acting on the
-  reduced chi-square, whose own relative error is about `sqrt(2/dof)`. A
-  starved window is exactly where the block is closest to rank deficient, and
-  the balance was free to amplify a handful of correspondences by up to the
-  cap: a brief loss of returns became a lasting one. `lidar_balance_min_dof`
-  now requires the ratio to be worth something before it is acted on.
+| mission | class | before | withheld |
+|---|---|---|---|
+| 2024-11-18-13-48-19 | episodic | 10.124 | 10.802 |
+| 2024-12-09-11-28-28 | episodic | 1.614 | 1.871 |
+| 2024-11-03-07-57-34 | healthy | 0.022 | 0.149 |
+| 2024-10-01-11-29-55 | healthy | 0.052 | 0.052 |
+
+It is worse on both missions it was built for and costs a healthy one a factor
+of seven. Sparse points are worth more than the pose error they carry, and a
+map that is not fed is a worse problem than a map fed slightly wrong. Left in
+at `starvation_ratio: 0`.
+
+The grand-tour failures also split into two classes that want opposite things,
+which is why one guard was never going to serve both. Comparing p10 against
+the median: 2024-11-02 (896, 0.65) and 2024-11-18-13-22-14 (458, 0.47) are
+*uniformly* sparse, while 2024-11-18-13-48-19 (3555, 0.07) and 2024-12-09-11-28-28
+(1700, 0.22) have healthy medians with severe dips. A relative test cannot
+fire on the first pair by construction, and indeed 2024-11-02 came back
+byte-identical. Sustained sparsity wants more geometry per segment instead.
+
+The one piece worth keeping from that round is `lidar_balance_min_dof`: the
+balance used to act on a reduced chi-square computed from as few as three
+correspondences, whose own relative error goes as `sqrt(2/dof)`, and was free
+to amplify a near rank-deficient block by up to the cap. It is inert on every
+sequence measured so far, where the block carries tens of thousands of degrees
+of freedom, so it is insurance rather than a fix.
 
 ## Scoring grand-tour needs the dataset's own body-frame correction
 
