@@ -236,6 +236,12 @@ public:
     /// not pin, and it applies per window rather than per run: a segment can
     /// lack an inertial factor even in an inertial run, because the stream
     /// ended early or because the factor did not span its segment.
+    /// The fraction of the knot spacing a preintegration must span before
+    /// its factor is believed. The front end already enforces this; stating
+    /// it again here is cheap and keeps any future path that builds segments
+    /// differently from quietly reintroducing the same defect.
+    double minImuSpanRatio = 0.98;
+
     double twistContinuityWeight = 2.0;
   };
 
@@ -255,6 +261,10 @@ public:
     /// Whether any iteration asked for a longer step than the trust region
     /// allows. A window that reports this was not simply refining.
     bool stepWasLimited = false;
+
+    /// Inertial factors dropped because they did not span the interval
+    /// between the knots they connect. Should be zero.
+    std::size_t imuFactorsRefused = 0;
 
     /// How much information each source puts on the knots' *position*, summed
     /// over the window's diagonal. Restricting the comparison to one block

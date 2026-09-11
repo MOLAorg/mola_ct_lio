@@ -276,6 +276,20 @@ void WindowOptimizer::assemble(
       if (!segments[k].hasImu) {
         continue;
       }
+
+      // The factor's deltas describe `imu.dt`; the states it connects are
+      // `knots[k+1].t - knots[k].t` apart. When those differ the residual
+      // reads a whole interval's motion as if it happened in part of one, and
+      // the preintegration covariance shrinks with the interval, so the
+      // shorter the factor the more confident it is. The front end already
+      // refuses such a factor; this is the same statement made where both
+      // quantities are actually in scope.
+      const double span = knots[k + 1].t - knots[k].t;
+      if (span > 0 && segments[k].imu.dt < params.minImuSpanRatio * span) {
+        result.imuFactorsRefused++;
+        continue;
+      }
+
       const ImuBlock imuBlk =
         assembleImuBlock(segments[k].imu, knots[k].state, knots[k + 1].state, params.gravity);
       system_.addStatePairBlock(static_cast<int>(k), imuBlk.H, imuBlk.g);
