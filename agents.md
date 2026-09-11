@@ -332,6 +332,15 @@ the point-starved mission, which wants the window kept tight: with a median of
 ones. That two sequences want opposite constants is the argument for the
 adaptive threshold rather than a better guess at a fixed one.
 
+What it should adapt *on* is not yet settled, and the obvious answer is
+already ruled out. The reference adapts on registration quality, and the
+natural analogue here is the LiDAR block's reduced chi-square, which we
+already compute. It does not discriminate: grand-tour 2024-10-01 sits at
+0.00301 and 2024-11-02 at 0.00321, near-identical, while wanting opposite
+windows. The only quantity that separates them is the absolute point count,
+896 per segment against 7400. Density, not residual, is the candidate signal,
+on one data point; the remaining missions are what test it.
+
 ## Map and source resolution are not the bottleneck
 
 Worth recording as a dead end. The reference method decimates to 0.10 m for
