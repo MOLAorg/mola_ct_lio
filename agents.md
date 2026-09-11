@@ -105,7 +105,7 @@ table in sync when adding a parameter.
 | parameter | env | default | sweep range | notes |
 |---|---|---|---|---|
 | `matcher_class` | `CTLIO_MATCHER` | `Matcher_Cov2Cov` | Cov2Cov, Points_DistanceThreshold, Points_KnnPlane | the residual type is a configuration choice, see the design doc |
-| `threshold` | `CTLIO_MATCH_TH` | 0.40 m | 0.2 - 1.5 | also the near value when `thresholdFar` is set |
+| `threshold` | `CTLIO_MATCH_TH` | 0.80 m | 0.4 - 1.5 | also the near value when `thresholdFar` is set |
 | `threshold_far` | `CTLIO_MATCH_TH_FAR` | 0 | 0 - 2.0 | 0 keeps a flat threshold |
 | `threshold_knee_range` | `CTLIO_MATCH_KNEE` | 15 m | 10 - 40 | only with `threshold_far` |
 | `threshold_transition_width` | `CTLIO_MATCH_WIDTH` | 5 m | 2 - 15 | only with `threshold_far` |
@@ -309,6 +309,28 @@ timing is gone and cannot be recovered. Two ways out, neither free:
 The first segment is the one shortened by the phase offset. Shifting the whole
 grid earlier instead would put the anchor knot before any data arrived, which
 leaves the origin pose describing an instant nothing was measured at.
+
+## The matching distance was too tight
+
+The reference pipeline does not use a flat correspondence distance at all: it
+is `2.0 * ADAPTIVE_THRESHOLD_SIGMA`, ranging roughly 1.0 to 4.0 m under a
+quality controller. Ours was a flat 0.4 m, chosen because a continuous-time
+segment spans far less motion than a whole scan. Measured, that reasoning was
+wrong about the *correspondence* distance, which has to cover the map's own
+sampling and the local misregistration, not the motion within a segment:
+
+| `match_threshold` | obsq-01 | obsq-02 | keble-02 | gt 10-01 | gt 11-02 |
+|---|---|---|---|---|---|
+| 0.2 | | 0.582 | | | |
+| 0.4 | 0.0748 | 0.1595 | 0.0433 | 0.0615 | 1.178 |
+| 0.8 | 0.0753 | 0.1302 | 0.0431 | 0.0521 | 1.323 |
+| 1.5 | | 0.1301 | | | |
+
+Better or unchanged on four of five, so 0.8 is the default. The exception is
+the point-starved mission, which wants the window kept tight: with a median of
+866 points per segment a wider window buys more wrong pairings than right
+ones. That two sequences want opposite constants is the argument for the
+adaptive threshold rather than a better guess at a fixed one.
 
 ## Map and source resolution are not the bottleneck
 

@@ -71,7 +71,7 @@ public:
     uint32_t prunePeriod = 25;
 
     /// Matching distance, and its optional range-adaptive form. [m]
-    float matchThreshold = 0.4f;
+    float matchThreshold = 0.8f;
     float matchThresholdFar = 0.0f;
     float matchKneeRange = 15.0f;
     float matchTransitionWidth = 5.0f;

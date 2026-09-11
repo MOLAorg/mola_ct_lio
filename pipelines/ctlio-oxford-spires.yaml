@@ -79,7 +79,7 @@ max_distance_for_cov: ${CTLIO_MAX_DIST_COV|1.0}
 max_plane_deviation_for_cov: ${CTLIO_PLANE_DEV_COV|0.0}
 
 # --- matcher ---
-match_threshold: ${CTLIO_MATCH_TH|0.4}
+match_threshold: ${CTLIO_MATCH_TH|0.8}
 match_threshold_far: ${CTLIO_MATCH_TH_FAR|0.0}
 match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
 match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}
