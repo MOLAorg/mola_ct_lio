@@ -40,13 +40,13 @@ fallback_scan_period: 0.1
 # --- trajectory ---
 # 40 ms knots against a 100 ms sweep means 2.5 segments per scan, which is what
 # makes this continuous-time rather than scan-to-map.
-# The clouds arrive already motion-compensated, so every point of a scan
-# shares one instant; 'segment_phase_offset' is what keeps a single-scan
-# segment identifiable. Lengthening the segment instead helps one mission
-# and hurts another, see agents.md.
+# Phase offset stays at zero. Moving it to half a segment was tried on the
+# reasoning that it centers an undivided scan between its two knots; measured,
+# it costs snow-2 a factor of seven (0.021 m against 0.131 m) and helps
+# nothing. See agents.md.
 segment_interval: ${CTLIO_SEG_INTERVAL|0.1}
 knot_count: ${CTLIO_KNOT_COUNT|4}
-segment_phase_offset: ${CTLIO_SEG_PHASE|0.5}
+segment_phase_offset: ${CTLIO_SEG_PHASE|0.0}
 
 # --- solver ---
 max_iterations: ${CTLIO_MAX_ITERS|25}
