@@ -254,45 +254,36 @@ like an obvious explanation for a 20x drift gap. It is not: on obsq-01,
 several times the cost. Whatever the remaining gap is, it is structural rather
 than a sampling density.
 
-## The LiDAR/IMU weighting, and why the default is not the datasheet figure
+## The LiDAR/IMU weighting is not a constant, and must stop being one
 
-This is the single largest effect measured so far, and it is a balance
-problem rather than a bug in either term.
+This is the largest remaining effect, and the sweep now says something sharper
+than "tune it". Full-sequence APE against `accel_noise_density`:
 
-The inertial factors are whitened by a genuine noise covariance. The LiDAR
-block is not: GICP's `cov_inv` is a surface-shape matrix built from local
-point scatter, and its absolute scale has no particular relation to a
-measurement noise. At the accelerometer's nominal `2e-3`, an IMU factor over a
-40 ms knot pair carries roughly `1e10` of position information against the
-whole LiDAR block's `1e5`-ish, so the trajectory follows the integrated IMU
-and the geometry cannot pull it back. What it looks like from outside is not a
-failure: inliers and chi2 stay flat while the trajectory quietly under-travels.
+| accel_noise_density | obsq-01 | obsq-02 | keble-02 |
+|---|---|---|---|
+| 2e-3 (datasheet) | 1029 | | |
+| 1e-2 | 66.1 | | |
+| 5e-2 (default) | 1.456 | 1.546 | 1.153 |
+| 2e-1 | 1.396 | **853** | **0.459** |
+| 5e-1 | 1.272 | | |
+| 1.0 | 1.227 | | |
 
-Measured on observatory-quarter-01, APE against ground truth:
+Read the 2e-1 row. The same value that more than halves keble-02's error makes
+obsq-02 diverge outright, on the same sensor, the same rig and the same day.
+There is no scalar that is right for all three, so no amount of further
+sweeping produces a defensible default: the 1.227 at the bottom of the obsq-01
+column is not a result, it is a number that would blow up somewhere else.
 
-| `accel_noise_density` | APE rmse | path ratio |
-|---|---|---|
-| 2e-3 (datasheet) | 0.737 m | 0.970 |
-| 1e-2 | **6.285 m** | 2.637 |
-| **5e-2 (default)** | **0.039 m** | **1.003** |
-| 2e-1 | 0.041 m | - |
+The cause is the one already described: the inertial factors are whitened by a
+genuine noise covariance while GICP's `cov_inv` is a surface-shape matrix
+whose absolute scale has no relation to a measurement noise, and that scale
+moves with the scene. `accel_noise_density` is being used to cancel a quantity
+that is not constant, which is why it cannot be.
 
-For reference on the same window, the same code with `use_imu: false` scores
-0.054 m but with a path ratio of **1.78**, i.e. it is accurate on average and
-jittery by 2-3 cm per knot. The inertial arm at 5e-2 is better on both counts,
-which is what the coupling is supposed to buy.
+The fix is to stop hand-balancing and let the data set the ratio:
+mp2p_icp's `Solver_GaussNewton::cov2cov_auto_balance_with_prior` estimates it
+from the residuals themselves. That is now the highest-value remaining task.
 
-**Do not read this axis as monotonic.** 1e-2 is not between its neighbors, it
-is a blow-up, so a sweep of it needs the intermediate points rather than the
-ends.
-
-The proper fix is to make the two blocks commensurate instead of tuning one
-against the other. `mp2p_icp` already has the machinery: `Solver_GaussNewton`
-carries a Birge-ratio auto-balance of the cov2cov block against its prior, for
-exactly this reason. Adopting that here would replace this parameter. Until
-then, treat 5e-2 as an effective weight that absorbs scale factor,
-misalignment, carrier vibration and the units mismatch, not as a claim about
-the sensor.
 
 ## What the system test establishes
 
