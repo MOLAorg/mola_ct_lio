@@ -54,7 +54,7 @@ table in sync when adding a parameter.
 | `bias_prior_sigma_gyro` | `CTLIO_BIAS_PRIOR_GYRO` | 0.02 rad/s | 0.005 - 0.05 | same for the gyro bias |
 | `segment_phase_offset` | `CTLIO_SEG_PHASE` | 0.0 | 0.0 - 0.5 | where in a segment the first scan lands. Only worth moving when a provider gives one instant per scan |
 | `lidar_balance` | `CTLIO_LIDAR_BALANCE` | None | None, DownOnly, TwoSided | reconciles the LiDAR block's weight with its own residuals, see below |
-| `lidar_balance_max_scale` | `CTLIO_LIDAR_BALANCE_MAX` | 100 | 10 - 1000 | how far the balance may rescale the block in either direction |
+| `lidar_balance_max_scale` | `CTLIO_LIDAR_BALANCE_MAX` | 1000 | 100 - 1e4 | how far the balance may rescale the block in either direction |
 | `twist_continuity_weight` | `CTLIO_TWIST_W` | 2.0 | 0 - 10 | LiDAR-only only; ignored once IMU factors are present |
 
 ### Residual weighting
@@ -198,11 +198,11 @@ Residual-driven balancing changed the picture completely. With
 
 | sequence | before | now | best on record |
 |---|---|---|---|
-| obsq-01 | 1.456 | **0.0750** | 0.0628 (lio cfg-03) |
-| obsq-02 | 1.546 | **0.1520** | 0.0543 (lio cfg-01) |
-| keble-02 | 1.153 | **0.0448** | **this**, next 0.0463 |
-| grand-tour 10-01 | 2.920 | **0.1337** | |
-| grand-tour 11-02 | 544.8 | **1.274** | |
+| obsq-01 | 1.456 | **0.0748** | 0.0628 (lio cfg-03) |
+| obsq-02 | 1.546 | **0.1595** | 0.0543 (lio cfg-01) |
+| keble-02 | 1.153 | **0.0433** | **this**, next 0.0463 |
+| grand-tour 10-01 | 2.920 | **0.0990** | |
+| grand-tour 11-02 | 544.8 | **1.198** | |
 
 Nothing diverges any more, and keble-02 is the best number on record for that
 sequence. obsq-02 is the laggard and grand-tour 11-02 is still an order of
@@ -228,9 +228,14 @@ the absolute bias prior, then a consistent marginalization recursion.
 `max_step_translation` is insurance, not a fix: it never fires on any sequence
 measured so far. The runaways are slow ramps, not jumps.
 
-Open: `lidar_balance_max_scale` at 100 is binding between 68% and 95% of
-windows on every sequence, against implied ratios of 118 to 271, so the cap is
-still shaping the result and wants raising.
+The cap is not what these numbers rest on. Raising
+`lidar_balance_max_scale` from 100 to 1000, where it binds 28% of windows
+rather than 91%, moves obsq-01 by 0.0002, improves keble-02, grand-tour 10-01
+and 11-02, and costs obsq-02 5%. 1000 is the default on that balance.
+
+Open: obsq-02 is the one sequence still well off, at 0.16 against a best of
+0.054, and it is the only one that prefers a *tighter* cap. Worth
+understanding rather than tuning.
 
 ## Pre-deskewed clouds make the continuous-time model degenerate
 

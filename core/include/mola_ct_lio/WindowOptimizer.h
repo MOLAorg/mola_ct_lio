@@ -180,7 +180,7 @@ public:
     /// The furthest the balance may scale the LiDAR block in either
     /// direction. A window with very few correspondences can produce a wild
     /// ratio, and this is what stops one from being acted on.
-    double lidarBalanceMaxScale = 100.0;
+    double lidarBalanceMaxScale = 1000.0;
 
     /// Weight of the twist-continuity term used when the IMU is absent. It is
     /// what keeps a LiDAR-only window from drifting in an unobservable
