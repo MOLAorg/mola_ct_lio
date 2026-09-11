@@ -266,6 +266,33 @@ Loosening the bound nearly triples the error. Tightening the bias random walk
 alongside it adds nothing (0.148 against 0.147), so it is the absolute bound
 doing the work.
 
+## What grand-tour actually fails on: transient point starvation
+
+All ten missions with ground truth, full sequences, current defaults, scored
+with the body-frame correction below:
+
+| mission | APE | median segpts | p10 segpts |
+|---|---|---|---|
+| 2024-11-03-07-57-34 | 0.022 | 6189 | 3957 |
+| 2024-11-14-13-45-37 | 0.027 | 7516 | 5605 |
+| 2024-11-03-13-51-43 | 0.052 | 5234 | 3310 |
+| 2024-10-01-11-29-55 | 0.052 | 7400 | 4154 |
+| 2024-12-09-09-41-46 | 0.294 | 5372 | 3719 |
+| 2024-12-09-09-34-43 | 0.295 | 5352 | 3953 |
+| 2024-11-02-17-18-32 | 1.323 | 896 | 580 |
+| 2024-12-09-11-28-28 | 1.614 | 1700 | 381 |
+| 2024-11-18-13-22-14 | 4.915 | 458 | 215 |
+| 2024-11-18-13-48-19 | 10.124 | 3555 | 266 |
+
+The tenth percentile of a segment's point count separates the failures
+exactly: every mission above 0.5 m has a p10 under 600, every one below has a
+p10 over 3300. The *median* does not, and that is the whole point:
+2024-11-18-13-48-19 has a perfectly healthy median of 3555 and is the worst
+result of the ten. What breaks these runs is not a sparse sensor but
+occasional segments arriving nearly empty, and nothing in the estimator
+currently treats such a segment differently from a full one. Four of the ten
+are at or below 0.052 m, so the machinery is right when it is fed.
+
 ## Scoring grand-tour needs the dataset's own body-frame correction
 
 Its ground truth is anchored to a physical sensor mount, not to `base`, which
