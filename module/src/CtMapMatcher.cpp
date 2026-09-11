@@ -75,6 +75,9 @@ void CtMapMatcher::initialize(const mrpt::containers::yaml & cfg)
   if (cfg.has("source_voxel_stride")) {
     params.sourceVoxelStride = cfg["source_voxel_stride"].as<int>();
   }
+  if (cfg.has("min_segment_points")) {
+    params.minSegmentPoints = cfg["min_segment_points"].as<std::size_t>();
+  }
   readDouble("map_voxel_size", params.mapVoxelSize);
   readDouble("map_radius", params.mapRadius);
   readUint("map_prune_period", params.prunePeriod);

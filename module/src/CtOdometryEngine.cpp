@@ -192,6 +192,24 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
   seg.points =
     CtMapMatcher::downsample(raw, params.matcher.sourceVoxelSize, params.matcher.sourceVoxelStride);
 
+  // A segment that came out short is re-decimated on a finer cell until it
+  // clears the floor, the cell stops helping, or the retries run out. A
+  // segment already above the floor never reaches here, so the sequences this
+  // corpus already handles well are left exactly as they were.
+  constexpr int kMaxRefinements = 3;
+  double cell = params.matcher.sourceVoxelSize;
+  for (int i = 0;
+       i < kMaxRefinements && params.matcher.minSegmentPoints > 0 &&
+       seg.points.size() < params.matcher.minSegmentPoints && seg.points.size() < raw.size();
+       i++) {
+    cell *= 0.5;
+    auto finer = CtMapMatcher::downsample(raw, cell, params.matcher.sourceVoxelStride);
+    if (finer.size() <= seg.points.size()) {
+      break;
+    }
+    seg.points = std::move(finer);
+  }
+
   if (!seg.points.empty()) {
     double lowest = seg.points.front().alpha;
     double highest = lowest;

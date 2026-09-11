@@ -87,6 +87,7 @@ table in sync when adding a parameter.
 |---|---|---|---|---|
 | `ds_size` | `CTLIO_DS_SIZE` | 0.4 m | 0.2 - 1.0 | per-segment voxel downsample of the source points |
 | `source_voxel_stride` | `CTLIO_DS_STRIDE` | 1 | 1 - 3 | keep one occupied source voxel in this many; thins without coarsening |
+| `min_segment_points` | `CTLIO_MIN_SEG_PTS` | 2500 | 0 - 5000 | a short segment is re-decimated on a finer cell until it clears this. 0 disables |
 | `min_range` | `CTLIO_MIN_RANGE` | 1.0 m | 0.3 - 3.0 | Oxford needs 1.0, KITTI 0.3 |
 | `max_range` | `CTLIO_MAX_RANGE` | 100 m | 50 - 150 | |
 | `decimation` | `CTLIO_DECIMATION` | 1 | 1 - 4 | the corpus has a standing result that decimation is free in both directions |
@@ -321,6 +322,12 @@ scarce. `source_voxel_stride` is already the mechanism for the thinning half.
 A longer segment is not the answer for the sparse missions either: 0.20 s
 takes 2024-11-02 from 1.32 to 0.78 but 2024-11-18-13-22-14 from 4.92 to 5.99,
 and 0.30 s is far worse on both.
+
+So the knob became a floor rather than a target. A segment that comes out
+short is re-decimated on a cell halved up to three times, stopping as soon as
+it clears the floor or the finer cell stops adding points. A segment already
+above the floor never enters that path at all, which is what keeps the
+sequences this corpus already handles well bit-for-bit unchanged.
 
 ## Withholding a starved segment from the map makes things worse
 

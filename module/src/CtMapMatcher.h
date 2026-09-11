@@ -56,6 +56,17 @@ public:
     /// One keeps every voxel.
     int sourceVoxelStride = 1;
 
+    /// Fewest points a segment should carry into the optimization before the
+    /// voxel is refined to find more.
+    ///
+    /// A fixed cell cannot serve both ends of this corpus: measured across
+    /// every sequence, refining it is neutral or harmful above roughly 2500
+    /// points per segment and worth a factor of five below about 1700. Since
+    /// the harm is confined to the dense end, the rule is a floor rather than
+    /// a target: a segment already above it is decimated exactly as before,
+    /// and only a short one pays for a second pass. Zero disables.
+    std::size_t minSegmentPoints = 2500;
+
     /// Voxel size used to decimate points on their way into the map. [m]
     double mapVoxelSize = 0.4;
 
