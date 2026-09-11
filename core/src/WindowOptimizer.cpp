@@ -16,6 +16,7 @@
 #include <mola_ct_lio/WindowOptimizer.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace mola::ct
 {
@@ -106,12 +107,14 @@ void WindowOptimizer::assemble(
   const auto knotCount = static_cast<int>(knots.size());
 
   system_.setZero();
+  lidarSystem_.setZero();
   result.chi2 = 0;
   result.errorSum = 0;
   result.inliers = 0;
   result.lidarPositionInfo = 0;
   result.imuPositionInfo = 0;
   result.priorPositionInfo = 0;
+  result.lidarChi2 = 0;
 
   // Sums the position diagonal of a factor's Hessian over the knots it spans.
   const auto positionInfoOf = [](const auto & H, int knotsSpanned, int strideInBlock) {
@@ -150,13 +153,35 @@ void WindowOptimizer::assemble(
       current, jacobianAt, segments[k].points, correspondences_[k], params.kernel,
       params.kernelScale);
 
-    system_.addPosePairBlock(static_cast<int>(k), blk.H, blk.g);
+    lidarSystem_.addPosePairBlock(static_cast<int>(k), blk.H, blk.g);
 
     result.lidarPositionInfo += positionInfoOf(blk.H, 2, 6);
-    result.chi2 += blk.chi2;
+    result.lidarChi2 += blk.chi2;
     result.errorSum += blk.errorSum;
     result.inliers += blk.inliers;
   }
+
+  // Each correspondence supplies three residuals, and the window's own pose
+  // freedoms are what the fit consumes.
+  result.lidarDof = std::max(1.0, 3.0 * static_cast<double>(result.inliers) - 6.0 * knotCount);
+  result.lidarScale = 1.0;
+
+  if (params.lidarBalance != LidarBalance::None && result.inliers >= 3) {
+    double kappa = result.lidarChi2 / result.lidarDof;
+    if (params.lidarBalance == LidarBalance::DownOnly) {
+      kappa = std::max(1.0, kappa);
+    }
+
+    const double maxScale = std::max(1.0, params.lidarBalanceMaxScale);
+    if (kappa > 0 && std::isfinite(kappa)) {
+      result.lidarScale = std::clamp(1.0 / kappa, 1.0 / maxScale, maxScale);
+    }
+  }
+
+  system_.H() += result.lidarScale * lidarSystem_.H();
+  system_.g() += result.lidarScale * lidarSystem_.g();
+  result.chi2 += result.lidarScale * result.lidarChi2;
+  result.lidarPositionInfo *= result.lidarScale;
 
   // --- inertial, or the kinematic term that stands in for it ---
   if (params.useImu) {
@@ -218,6 +243,7 @@ WindowOptimizer::Result WindowOptimizer::optimize(
   const int dim = knotDim();
   const auto knotCount = static_cast<int>(knots.size());
   system_.resize(knotCount, dim);
+  lidarSystem_.resize(knotCount, dim);
 
   correspondences_.assign(segments.size(), {});
   const int rematchEvery = std::max(1, params.rematchEvery);

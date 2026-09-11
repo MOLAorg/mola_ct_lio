@@ -53,6 +53,8 @@ table in sync when adding a parameter.
 | `bias_prior_sigma_acc` | `CTLIO_BIAS_PRIOR_ACC` | 0.3 m/s^2 | 0.1 - 1.0 | absolute bound on the accel bias; the random walk alone leaves it unbounded. 0 disables |
 | `bias_prior_sigma_gyro` | `CTLIO_BIAS_PRIOR_GYRO` | 0.02 rad/s | 0.005 - 0.05 | same for the gyro bias |
 | `segment_phase_offset` | `CTLIO_SEG_PHASE` | 0.0 | 0.0 - 0.5 | where in a segment the first scan lands. Only worth moving when a provider gives one instant per scan |
+| `lidar_balance` | `CTLIO_LIDAR_BALANCE` | None | None, DownOnly, TwoSided | reconciles the LiDAR block's weight with its own residuals, see below |
+| `lidar_balance_max_scale` | `CTLIO_LIDAR_BALANCE_MAX` | 100 | 10 - 1000 | how far the balance may rescale the block in either direction |
 | `twist_continuity_weight` | `CTLIO_TWIST_W` | 2.0 | 0 - 10 | LiDAR-only only; ignored once IMU factors are present |
 
 ### Residual weighting
@@ -280,10 +282,17 @@ whose absolute scale has no relation to a measurement noise, and that scale
 moves with the scene. `accel_noise_density` is being used to cancel a quantity
 that is not constant, which is why it cannot be.
 
-The fix is to stop hand-balancing and let the data set the ratio:
-mp2p_icp's `Solver_GaussNewton::cov2cov_auto_balance_with_prior` estimates it
-from the residuals themselves. That is now the highest-value remaining task.
+The fix is to stop hand-balancing and let the residuals set the ratio. The
+LiDAR block's reduced chi-square says directly how far its information
+matrices are from describing the sensor's noise, and on obsq-01 it is 0.0107,
+tightly held (p10 0.0084, p90 0.0171). The residuals are about 93 times
+smaller than the covariances claim, so the block is that much *more* precise
+than it says, and `accel_noise_density` was being raised to compensate.
 
+Note the direction: the conventional Birge ratio is `max(1, chi2/dof)`, which
+only ever scales an over-confident block *down* and would be entirely inert
+here. `lidar_balance: TwoSided` drops the clamp so an under-confident block is
+corrected too, which is the case this data presents.
 
 ## What the system test establishes
 

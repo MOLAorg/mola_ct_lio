@@ -70,6 +70,18 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("bias_prior_sigma_acc", params.optimizer.biasPriorSigmaAcc);
   readDouble("bias_prior_sigma_gyro", params.optimizer.biasPriorSigmaGyro);
   readDouble("twist_continuity_weight", params.optimizer.twistContinuityWeight);
+  readDouble("lidar_balance_max_scale", params.optimizer.lidarBalanceMaxScale);
+
+  if (cfg.has("lidar_balance")) {
+    const auto name = cfg["lidar_balance"].as<std::string>();
+    if (name == "TwoSided") {
+      params.optimizer.lidarBalance = ct::LidarBalance::TwoSided;
+    } else if (name == "DownOnly") {
+      params.optimizer.lidarBalance = ct::LidarBalance::DownOnly;
+    } else {
+      params.optimizer.lidarBalance = ct::LidarBalance::None;
+    }
+  }
 
   if (cfg.has("profiler_enabled")) {
     profiler.enable(cfg["profiler_enabled"].as<bool>());
@@ -403,6 +415,9 @@ void CtOdometryEngine::emitOldest()
   d.lidarPositionInfo = lastResult_.lidarPositionInfo;
   d.imuPositionInfo = lastResult_.imuPositionInfo;
   d.priorPositionInfo = lastResult_.priorPositionInfo;
+  d.lidarChi2 = lastResult_.lidarChi2;
+  d.lidarDof = lastResult_.lidarDof;
+  d.lidarScale = lastResult_.lidarScale;
 
   onPose(knots_[0].t, knots_[0].state.T, d);
   knotsEmitted_++;

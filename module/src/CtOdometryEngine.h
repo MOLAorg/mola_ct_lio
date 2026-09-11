@@ -124,6 +124,11 @@ public:
     double lidarPositionInfo = 0;
     double imuPositionInfo = 0;
     double priorPositionInfo = 0;
+
+    /// See WindowOptimizer::Result.
+    double lidarChi2 = 0;
+    double lidarDof = 0;
+    double lidarScale = 1.0;
   };
 
   /// Called once per knot, when it leaves the window.

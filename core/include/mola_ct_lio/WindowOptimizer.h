@@ -99,6 +99,34 @@ using MatchFunction = std::function<void(
   std::size_t segmentIndex, const CtSegment & segment, const std::vector<SegmentPoint> & points,
   std::vector<PointCorrespondence> & out)>;
 
+/** How the LiDAR block's weight is reconciled with its own residuals.
+ *
+ * GICP's information matrix is built from the local scatter of points, so its
+ * absolute scale describes a surface's shape rather than the sensor's noise,
+ * and it moves with the scene. The inertial factors, by contrast, are
+ * whitened by a genuine noise covariance. Balancing the two with a hand-tuned
+ * constant therefore cannot work across datasets: the constant is cancelling
+ * something that is not constant.
+ *
+ * The residuals themselves carry the missing scale. A block whose reduced
+ * chi-square is far from one is claiming a precision it does not have, or
+ * hiding one it does, and rescaling it by that ratio makes its implied noise
+ * match what is actually observed.
+ */
+enum class LidarBalance
+{
+  /// Take the information matrices at face value.
+  None,
+
+  /// Scale the block down when its residuals exceed what it claims, and
+  /// never up. This is the conventional Birge ratio, and it is inert when a
+  /// block is under-confident rather than over-confident.
+  DownOnly,
+
+  /// Scale in both directions, so an under-confident block is also corrected.
+  TwoSided,
+};
+
 /** Joint Gauss-Newton optimization of every knot in the window. */
 class WindowOptimizer
 {
@@ -145,6 +173,15 @@ public:
     double biasPriorSigmaAcc = 0.3;
     double biasPriorSigmaGyro = 0.02;
 
+    /// How the LiDAR block's weight is reconciled against its own residuals.
+    /// See LidarBalance.
+    LidarBalance lidarBalance = LidarBalance::None;
+
+    /// The furthest the balance may scale the LiDAR block in either
+    /// direction. A window with very few correspondences can produce a wild
+    /// ratio, and this is what stops one from being acted on.
+    double lidarBalanceMaxScale = 100.0;
+
     /// Weight of the twist-continuity term used when the IMU is absent. It is
     /// what keeps a LiDAR-only window from drifting in an unobservable
     /// direction, and it plays no part once IMU factors are present.
@@ -177,6 +214,13 @@ public:
     double lidarPositionInfo = 0;
     double imuPositionInfo = 0;
     double priorPositionInfo = 0;
+
+    /// The LiDAR block's own chi-square and its degrees of freedom, and the
+    /// factor the balance applied to it. A scale far from one says the
+    /// information matrices were not describing the sensor's noise.
+    double lidarChi2 = 0;
+    double lidarDof = 0;
+    double lidarScale = 1.0;
   };
 
   /** Runs the optimization in place.
@@ -201,6 +245,10 @@ public:
 
 private:
   WindowSystem system_;
+
+  /// The LiDAR contributions alone, kept apart so that they can be rescaled
+  /// as a block once their residuals are known, before joining the rest.
+  WindowSystem lidarSystem_;
 
   /// Correspondences of each segment, kept between re-matches.
   std::vector<std::vector<PointCorrespondence>> correspondences_;
