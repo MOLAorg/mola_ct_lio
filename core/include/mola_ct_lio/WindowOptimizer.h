@@ -223,6 +223,21 @@ public:
     /// cap is how a brief loss of returns turns into a lasting one.
     double lidarBalanceMinDof = 200.0;
 
+    /// How quickly the balance is allowed to follow its own estimate, as the
+    /// weight given to the newest window. Zero means no smoothing, which is
+    /// what a per-window estimate amounts to.
+    ///
+    /// The ratio being estimated is a property of the sensor and the scene's
+    /// statistics, and it moves slowly. The estimate does not: a transient
+    /// registration difficulty raises the residuals for a window or two, and
+    /// a per-window balance reads that as the LiDAR being less precise than
+    /// it claimed and cuts its weight by an order of magnitude, taking the
+    /// geometry's authority away exactly when it is needed. Measured on
+    /// arc-3, the scale drops from 339 to 11 across two windows whose point
+    /// counts and inlier counts are entirely normal, and the trajectory moves
+    /// 1.5 m while the platform stands still.
+    double lidarBalanceSmoothing = 0.05;
+
     /// Uncertainty of an external odometry's relative motion over one
     /// segment. Zero on either disables that half, which is the default: the
     /// factor is measured and useful, but a second pose source fused while
@@ -282,6 +297,10 @@ public:
     double lidarChi2 = 0;
     double lidarDof = 0;
     double lidarScale = 1.0;
+
+    /// What this window alone asked for, before smoothing. A large gap
+    /// between the two is a window the balance declined to follow.
+    double lidarScaleInstant = 1.0;
   };
 
   /** Runs the optimization in place.
@@ -306,6 +325,10 @@ public:
 
 private:
   WindowSystem system_;
+
+  /// The balance as it stands, carried across windows. Zero until the first
+  /// window that can estimate it.
+  double smoothedLidarScale_ = 0;
 
   /// The LiDAR contributions alone, kept apart so that they can be rescaled
   /// as a block once their residuals are known, before joining the rest.

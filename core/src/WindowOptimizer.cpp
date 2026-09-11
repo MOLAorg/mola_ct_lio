@@ -247,8 +247,17 @@ void WindowOptimizer::assemble(
 
     const double maxScale = std::max(1.0, params.lidarBalanceMaxScale);
     if (kappa > 0 && std::isfinite(kappa)) {
-      result.lidarScale = std::clamp(1.0 / kappa, 1.0 / maxScale, maxScale);
+      result.lidarScaleInstant = std::clamp(1.0 / kappa, 1.0 / maxScale, maxScale);
     }
+
+    // What is being estimated is a property of the sensor and of the scene's
+    // statistics, and it moves slowly; one window's residuals do not.
+    // Following them window by window hands the geometry's authority away
+    // exactly when a transient makes the residuals large, which is when it is
+    // needed most.
+    result.lidarScale = params.lidarBalanceSmoothing > 0 && smoothedLidarScale_ > 0
+                          ? smoothedLidarScale_
+                          : result.lidarScaleInstant;
   }
 
   system_.H() += result.lidarScale * lidarSystem_.H();
@@ -431,6 +440,15 @@ WindowOptimizer::Result WindowOptimizer::optimize(
   // tell from real information.
   if (stepWasFinite && result.iterations > 0) {
     assemble(knots, segments, match, prior, false, result);
+  }
+
+  // The balance moves once per window, not once per iteration: it describes
+  // the data rather than the state of the search.
+  if (params.lidarBalance != LidarBalance::None && result.lidarScaleInstant > 0) {
+    const double a = std::clamp(params.lidarBalanceSmoothing, 0.0, 1.0);
+    smoothedLidarScale_ = smoothedLidarScale_ > 0 && a > 0
+                            ? (1.0 - a) * smoothedLidarScale_ + a * result.lidarScaleInstant
+                            : result.lidarScaleInstant;
   }
 
   return result;

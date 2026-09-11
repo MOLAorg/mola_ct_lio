@@ -61,6 +61,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("odometry_sigma_lin", params.optimizer.odometrySigmaLin);
   readDouble("odometry_sigma_ang", params.optimizer.odometrySigmaAng);
   readDouble("lidar_balance_min_dof", params.optimizer.lidarBalanceMinDof);
+  readDouble("lidar_balance_smoothing", params.optimizer.lidarBalanceSmoothing);
 
   readInt("max_iterations", params.optimizer.maxIterations);
   readInt("rematch_every", params.optimizer.rematchEvery);
