@@ -136,8 +136,9 @@ struct Cli
     cmd};
 #endif
 
-// Traj-LO is LiDAR-only: unlike the other wrappers in this suite there is no
-// --imu-topic here, and the bag readers below declare no IMU sensor.
+// Unlike upstream Traj-LO, this estimator is inertial, so the bag readers
+// below declare an IMU, and optionally an external odometry where a dataset
+// publishes one.
 #if defined(HAVE_MOLA_INPUT_ROSBAG2) || defined(HAVE_MOLA_INPUT_ROSBAG1)
   TCLAP::ValueArg<std::string> arg_imuTopic{
     "",          "imu-topic", "IMU topic in the rosbag (default: /imu/data)", false, "/imu/data",
@@ -146,6 +147,16 @@ struct Cli
   TCLAP::ValueArg<std::string> arg_lidarTopic{
     "",    "lidar-topic", "Only for rosbag1/rosbag2 input: the LiDAR point cloud topic name.",
     false, "/lidar",      "/lidar",
+    cmd};
+
+  TCLAP::ValueArg<std::string> arg_odometryTopic{
+    "",
+    "odometry-topic",
+    "External odometry topic, e.g. a legged platform's own kinematic-inertial "
+    "estimate. Empty (the default) declares no such sensor.",
+    false,
+    "",
+    "/odom",
     cmd};
 #endif
 
@@ -265,6 +276,26 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
 #endif
 
 #if defined(HAVE_MOLA_INPUT_ROSBAG1)
+namespace
+{
+/** The odometry sensor entry for the bag reader, or nothing when no topic was
+ * asked for. Read as CObservationRobotPose rather than the planar
+ * CObservationOdometry: a legged platform's estimate carries height, roll and
+ * pitch, which the planar type would silently drop.
+ */
+std::string odometrySensorYaml(const std::string & topic)
+{
+  if (topic.empty()) {
+    return {};
+  }
+  return mrpt::format(
+    "        - topic: '%s'\n"
+    "          type: CObservationRobotPose\n"
+    "          sensorLabel: odometry\n",
+    topic.c_str());
+}
+}  // namespace
+
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
   Cli & cli, const std::string & rosbag1file, const mrpt::system::VerbosityLevel logLevel)
 {
@@ -287,9 +318,10 @@ std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
           sensorLabel: imu
           fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"
           use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
-)"""",
+%s)"""",
     bags_to_yaml(rosbag1file).c_str(), cli.arg_lidarTopic.getValue().c_str(),
-    cli.arg_imuTopic.getValue().c_str())));
+    cli.arg_imuTopic.getValue().c_str(),
+    odometrySensorYaml(cli.arg_odometryTopic.getValue()).c_str())));
 
   o->initialize(cfg);
   return o;
@@ -381,6 +413,7 @@ int main_odometry(Cli & cli)
   } else
 #endif
 #if defined(HAVE_MOLA_INPUT_ROSBAG1)
+
     if (cli.argRosbag1.isSet()) {
     dataset = dataset_from_rosbag1(cli, cli.argRosbag1.getValue(), logLevel);
   } else

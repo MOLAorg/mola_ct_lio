@@ -71,6 +71,16 @@ struct Segment
   PreintegratedImu imu;
   bool hasImu = false;
 
+  /** Relative motion over this segment as reported by an independent
+   * odometry source, in the begin knot's frame, and whether there is one.
+   *
+   * A legged platform's kinematic-inertial estimator does not care what the
+   * scene looks like, which is exactly the complement of a LiDAR in a
+   * confined or self-similar space.
+   */
+  SE3 odometryDelta;
+  bool hasOdometry = false;
+
   /** How much of the segment the points actually span, as a fraction.
    *
    * A continuous-time segment can only fit an interpolation if its points
@@ -193,6 +203,14 @@ public:
     /// cap is how a brief loss of returns turns into a lasting one.
     double lidarBalanceMinDof = 200.0;
 
+    /// Uncertainty of an external odometry's relative motion over one
+    /// segment. Deliberately loose by default: such a source's pose channel
+    /// is worth having where geometry fails, and is not worth trusting
+    /// against good geometry. Zero on either disables that half.
+    /// [m] and [rad] per segment
+    double odometrySigmaLin = 0.05;
+    double odometrySigmaAng = 0.02;
+
     /// Weight of the twist-continuity term used when the IMU is absent. It is
     /// what keeps a LiDAR-only window from drifting in an unobservable
     /// direction, and it plays no part once IMU factors are present.
@@ -265,6 +283,11 @@ private:
   std::vector<std::vector<PointCorrespondence>> correspondences_;
 
   void addTwistContinuity(const std::vector<Knot> & knots);
+
+  /** Adds the relative-motion terms of whichever segments carry an external
+   * odometry measurement.
+   */
+  void addOdometry(const std::vector<Knot> & knots, const std::vector<Segment> & segments);
 
   /** Builds the normal equations of the whole window at the current states.
    *

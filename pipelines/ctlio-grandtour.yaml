@@ -11,6 +11,7 @@
 
 lidar_sensor_label: "lidar"
 imu_sensor_label: "imu"
+odometry_sensor_label: "odometry"
 
 # IMPORTANT: the only Hesai topic these bags carry is
 # `/boxi/hesai/points_undistorted`, i.e. the provider has ALREADY motion
@@ -77,6 +78,11 @@ gyro_noise_density: ${CTLIO_GYRO_SIGMA|1.7e-4}
 accel_noise_density: ${CTLIO_ACCEL_SIGMA|5.0e-2}
 bias_sigma_acc: ${CTLIO_BIAS_SIGMA_ACC|1e-3}
 bias_sigma_gyro: ${CTLIO_BIAS_SIGMA_GYRO|1e-4}
+# External odometry, when the dataset has one. Loose on purpose: such a
+# source's pose channel is worth having where geometry fails and is not
+# worth trusting against good geometry. 0 disables.
+odometry_sigma_lin: ${CTLIO_ODO_SIGMA_LIN|0.05}
+odometry_sigma_ang: ${CTLIO_ODO_SIGMA_ANG|0.02}
 # Only used when use_imu is false, where it stands in for the inertial factors.
 twist_continuity_weight: ${CTLIO_TWIST_W|2.0}
 

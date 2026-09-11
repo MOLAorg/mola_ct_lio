@@ -99,6 +99,79 @@ void WindowOptimizer::addTwistContinuity(const std::vector<Knot> & knots)
   }
 }
 
+/** Residual of one segment's motion against an external odometry's report of
+ * it, in the increment convention the rest of the estimator uses: the
+ * translation compared in the world frame, the rotation on the right.
+ */
+namespace
+{
+Vec6 odometryResidual(const SE3 & Ti, const SE3 & Tj, const SE3 & measured)
+{
+  Vec6 r;
+  r.head<3>() = (Tj.t - Ti.t) - Ti.R * measured.t;
+  r.tail<3>() = so3Log(measured.R.transpose() * (Ti.R.transpose() * Tj.R));
+  return r;
+}
+}  // namespace
+
+/** Adds the relative-motion term of every segment that carries an external
+ * odometry measurement.
+ *
+ * Its Jacobian is numerical, for the same reason the twist-continuity term's
+ * is: one evaluation per segment per iteration is nothing beside the
+ * matching, and a closed form here would buy only a chance to get it wrong.
+ */
+void WindowOptimizer::addOdometry(
+  const std::vector<Knot> & knots, const std::vector<Segment> & segments)
+{
+  const double wLin =
+    params.odometrySigmaLin > 0 ? 1.0 / (params.odometrySigmaLin * params.odometrySigmaLin) : 0.0;
+  const double wAng =
+    params.odometrySigmaAng > 0 ? 1.0 / (params.odometrySigmaAng * params.odometrySigmaAng) : 0.0;
+  if (wLin <= 0 && wAng <= 0) {
+    return;
+  }
+
+  Eigen::Matrix<double, 6, 6> omega = Eigen::Matrix<double, 6, 6>::Zero();
+  omega.topLeftCorner<3, 3>() = wLin * Mat3::Identity();
+  omega.bottomRightCorner<3, 3>() = wAng * Mat3::Identity();
+
+  constexpr double kEps = 1e-7;
+
+  for (std::size_t k = 0; k < segments.size(); k++) {
+    if (!segments[k].hasOdometry) {
+      continue;
+    }
+
+    const SE3 & Ti = knots[k].state.T;
+    const SE3 & Tj = knots[k + 1].state.T;
+    const SE3 & measured = segments[k].odometryDelta;
+
+    const Vec6 r = odometryResidual(Ti, Tj, measured);
+
+    Eigen::Matrix<double, 6, 12> J;
+    for (int i = 0; i < 12; i++) {
+      Vec6 inc = Vec6::Zero();
+      inc[i % 6] = kEps;
+      SE3 pi = Ti;
+      SE3 pj = Tj;
+      incPose(i < 6 ? pi : pj, inc);
+
+      inc[i % 6] = -kEps;
+      SE3 mi = Ti;
+      SE3 mj = Tj;
+      incPose(i < 6 ? mi : mj, inc);
+
+      J.col(i) =
+        (odometryResidual(pi, pj, measured) - odometryResidual(mi, mj, measured)) / (2.0 * kEps);
+    }
+
+    const Mat12 H = J.transpose() * omega * J;
+    const Vec12 g = -J.transpose() * omega * r;
+    system_.addPosePairBlock(static_cast<int>(k), H, g);
+  }
+}
+
 void WindowOptimizer::assemble(
   const std::vector<Knot> & knots, const std::vector<Segment> & segments,
   const MatchFunction & match, const MarginalizationPrior & prior, bool rematch, Result & result)
@@ -211,6 +284,8 @@ void WindowOptimizer::assemble(
   } else {
     addTwistContinuity(knots);
   }
+
+  addOdometry(knots, segments);
 
   // --- what the states that already left the window still have to say ---
   if (prior.valid && prior.H.rows() > 0) {

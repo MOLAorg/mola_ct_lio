@@ -19,7 +19,9 @@
 #include <mrpt/core/format.h>
 #include <mrpt/core/lock_helper.h>
 #include <mrpt/obs/CObservationIMU.h>
+#include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
+#include <mrpt/obs/CObservationRobotPose.h>
 #include <mrpt/opengl/CPointCloudColoured.h>
 #include <mrpt/opengl/CSetOfObjects.h>
 #include <mrpt/opengl/stock_objects.h>
@@ -105,6 +107,7 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
 
   YAML_LOAD_OPT(lidar_sensor_label, std::string);
   YAML_LOAD_OPT(imu_sensor_label, std::string);
+  YAML_LOAD_OPT(odometry_sensor_label, std::string);
   YAML_LOAD_OPT(baselink2lidar_pose_str, std::string);
   YAML_LOAD_OPT(fallback_scan_period, double);
   YAML_LOAD_OPT(map_publish_period, double);
@@ -115,6 +118,7 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
 
   lidar_sensor_label_regex_ = std::regex(lidar_sensor_label);
   imu_sensor_label_regex_ = std::regex(imu_sensor_label);
+  odometry_sensor_label_regex_ = std::regex(odometry_sensor_label);
 
   lidar_pose_in_baselink_ = mrpt::poses::CPose3D::FromString("[" + baselink2lidar_pose_str + "]");
 
@@ -207,9 +211,40 @@ void CtLidarInertialOdometry::onNewObservation(const mrpt::obs::CObservation::Co
     onImu(o);
     return;
   }
+  if (std::regex_match(o->sensorLabel, odometry_sensor_label_regex_)) {
+    onOdometry(o);
+    return;
+  }
   if (std::regex_match(o->sensorLabel, lidar_sensor_label_regex_)) {
     onLidar(o);
   }
+}
+
+/** Takes a pose from an external odometry source.
+ *
+ * Both shapes the datasets use are accepted: the full SE(3)
+ * CObservationRobotPose, and the planar CObservationOdometry, which carries
+ * only x, y and yaw. The planar one is read as a pose at zero height and
+ * level, so a platform that climbs stairs must not be fed through it.
+ */
+void CtLidarInertialOdometry::onOdometry(const mrpt::obs::CObservation::ConstPtr & o)
+{
+  mrpt::poses::CPose3D pose;
+
+  if (auto rp = std::dynamic_pointer_cast<const mrpt::obs::CObservationRobotPose>(o); rp) {
+    pose = rp->pose.mean;
+  } else if (auto od = std::dynamic_pointer_cast<const mrpt::obs::CObservationOdometry>(o); od) {
+    pose = mrpt::poses::CPose3D(od->odometry);
+  } else {
+    return;
+  }
+
+  ct::SE3 p;
+  p.R = pose.getRotationMatrix().asEigen();
+  p.t = ct::Vec3(pose.x(), pose.y(), pose.z());
+
+  engine_->addOdometrySample(mrpt::Clock::toDouble(o->timestamp), p);
+  odometry_samples_++;
 }
 
 void CtLidarInertialOdometry::onImu(const mrpt::obs::CObservation::ConstPtr & o)

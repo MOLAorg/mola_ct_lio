@@ -77,6 +77,11 @@ public:
     /// the measurement is not lost and the idea is not tried again blind.
     double starvationRatio = 0.0;
 
+    /// Odometry samples older than the window are dropped; this is how much
+    /// margin is kept so a segment can still interpolate across its own
+    /// bounds. [s]
+    double odometryKeepMargin = 1.0;
+
     /// Where in a segment the first scan is made to land, as a fraction of
     /// the segment. The LiDAR information of a point at alpha splits between
     /// the two knots as (1 - alpha) and alpha, so a scan sitting exactly on a
@@ -162,6 +167,12 @@ public:
 
   void addImuSample(double t, const ct::Vec3 & acc, const ct::Vec3 & gyro);
 
+  /** Feeds a pose from an external odometry source, in that source's own
+   * fixed frame. Only relative motion between two instants is ever used, so
+   * the frame's origin and drift do not matter.
+   */
+  void addOdometrySample(double t, const ct::SE3 & pose);
+
   /** Feeds one scan's worth of points. They need not be sorted. */
   void addPoints(const std::vector<TimedPoint> & points);
 
@@ -207,6 +218,18 @@ private:
   /// what a starved one is judged against.
   double pointCountAverage_ = 0;
   std::size_t starvedSegments_ = 0;
+
+  struct OdometrySample
+  {
+    double t = 0;
+    ct::SE3 pose;
+  };
+  std::deque<OdometrySample> odometry_;
+
+  /** The motion an external odometry reports between two instants, expressed
+   * in the frame it had at `t0`. False when the samples do not bracket both.
+   */
+  [[nodiscard]] bool odometryDelta(double t0, double t1, ct::SE3 & out) const;
 
   ct::SE3 initialPose_;
   ct::Vec3 initialBiasAcc_ = ct::Vec3::Zero();

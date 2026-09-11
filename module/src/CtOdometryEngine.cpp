@@ -58,6 +58,8 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readBool("relinearize_each_slide", params.relinearizeEachSlide);
   readDouble("segment_phase_offset", params.segmentPhaseOffset);
   readDouble("starvation_ratio", params.starvationRatio);
+  readDouble("odometry_sigma_lin", params.optimizer.odometrySigmaLin);
+  readDouble("odometry_sigma_ang", params.optimizer.odometrySigmaAng);
   readDouble("lidar_balance_min_dof", params.optimizer.lidarBalanceMinDof);
 
   readInt("max_iterations", params.optimizer.maxIterations);
@@ -119,6 +121,49 @@ void CtOdometryEngine::setInitialState(
 void CtOdometryEngine::addImuSample(double t, const ct::Vec3 & acc, const ct::Vec3 & gyro)
 {
   imu_.push_back(ImuSample{t, acc, gyro});
+}
+
+void CtOdometryEngine::addOdometrySample(double t, const ct::SE3 & pose)
+{
+  odometry_.push_back(OdometrySample{t, pose});
+}
+
+/** Interpolates the source's pose at each instant and returns the motion
+ * between them, in the frame it held at `t0`.
+ *
+ * The translation is interpolated linearly and the rotation along the
+ * geodesic, which is the same constant-twist reading the trajectory itself
+ * uses, so the two describe motion the same way.
+ */
+bool CtOdometryEngine::odometryDelta(double t0, double t1, ct::SE3 & out) const
+{
+  const auto poseAt = [this](double t, ct::SE3 & pose) {
+    if (odometry_.size() < 2 || t < odometry_.front().t || t > odometry_.back().t) {
+      return false;
+    }
+    std::size_t hi = 1;
+    while (hi + 1 < odometry_.size() && odometry_[hi].t < t) {
+      hi++;
+    }
+    const auto & a = odometry_[hi - 1];
+    const auto & b = odometry_[hi];
+    const double span = b.t - a.t;
+    const double u = span > 1e-9 ? std::clamp((t - a.t) / span, 0.0, 1.0) : 0.0;
+
+    pose.t = a.pose.t + u * (b.pose.t - a.pose.t);
+    pose.R = a.pose.R * ct::so3Exp(u * ct::so3Log(a.pose.R.transpose() * b.pose.R));
+    pose.normalize();
+    return true;
+  };
+
+  ct::SE3 p0;
+  ct::SE3 p1;
+  if (!poseAt(t0, p0) || !poseAt(t1, p1)) {
+    return false;
+  }
+
+  out = p0.inverse() * p1;
+  return true;
 }
 
 void CtOdometryEngine::dropOldImuSamples(double before)
@@ -330,6 +375,12 @@ void CtOdometryEngine::closeReadySegments(double latestPointTime)
       seg.hasImu = seg.imu.dt > 0;
     }
 
+    ct::SE3 odoDelta;
+    if (odometryDelta(tBegin, tEnd, odoDelta)) {
+      seg.odometryDelta = odoDelta;
+      seg.hasOdometry = true;
+    }
+
     ct::Knot next;
     next.t = tEnd;
     next.state = predictNextKnot(seg);
@@ -342,6 +393,10 @@ void CtOdometryEngine::closeReadySegments(double latestPointTime)
         pending_.begin(), pending_.end(), [tEnd](const TimedPoint & p) { return p.t < tEnd; }),
       pending_.end());
     dropOldImuSamples(tEnd);
+
+    while (odometry_.size() >= 2 && odometry_[1].t < knots_.front().t - params.odometryKeepMargin) {
+      odometry_.pop_front();
+    }
 
     if (static_cast<int>(knots_.size()) > params.knotCount) {
       optimizeWindow();

@@ -91,6 +91,7 @@ protected:
 private:
   void onLidar(const mrpt::obs::CObservation::ConstPtr & o);
   void onImu(const mrpt::obs::CObservation::ConstPtr & o);
+  void onOdometry(const mrpt::obs::CObservation::ConstPtr & o);
   void publishPose(double t, const mrpt::poses::CPose3D & pose);
   void publishMap(const mrpt::Clock::time_point & timestamp);
 
@@ -98,9 +99,14 @@ private:
 
   std::regex lidar_sensor_label_regex_{"lidar"};
   std::regex imu_sensor_label_regex_{"imu"};
+  std::regex odometry_sensor_label_regex_{"odometry"};
 
   std::string lidar_sensor_label = "lidar";
   std::string imu_sensor_label = "imu";
+
+  /// An external odometry source, e.g. a legged platform's own
+  /// kinematic-inertial estimator. Optional; absent on most datasets.
+  std::string odometry_sensor_label = "odometry";
 
   /// Extra transform composed on top of the observation's own sensor pose,
   /// as "x y z yaw_deg pitch_deg roll_deg". It carries the whole extrinsic
@@ -137,6 +143,7 @@ private:
   bool warned_no_imu_ = false;
 
   std::size_t scans_processed_ = 0;
+  std::size_t odometry_samples_ = 0;
   std::size_t observations_seen_ = 0;
   bool warned_no_scans_ = false;
 
