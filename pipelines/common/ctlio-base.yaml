@@ -152,6 +152,9 @@ gate_max_threshold: ${CTLIO_GATE_MAX|1.0}
 gate_open_step: ${CTLIO_GATE_OPEN|1.5}
 gate_close_step: ${CTLIO_GATE_CLOSE|0.9}
 gate_baseline_windows: ${CTLIO_GATE_BASELINE|100}
+# Solve a collapsed window again with the gate already opened, rather than
+# letting the widening help only its successor. See CtOdometryEngine.h.
+gate_retries_per_window: ${CTLIO_GATE_RETRIES|0}
 match_threshold_far: ${CTLIO_MATCH_TH_FAR|0.0}
 match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
 match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}

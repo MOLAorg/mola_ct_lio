@@ -140,6 +140,18 @@ public:
     /// `gateCloseStep` once it recovers, so the tight gate is what runs in
     /// steady state and the wide one is a response to evidence.
     double gateOpenInlierRatio = 0.0;
+
+    /// How many times a window may be solved again, with the gate opened a
+    /// further step, before its result is accepted. Zero keeps the widened
+    /// gate for the following window only.
+    ///
+    /// The difference is not cosmetic. A window whose correspondences have
+    /// collapsed is the one that needs the wider gate; carrying the widening
+    /// forward means that window is still solved badly, its pose committed,
+    /// and its points inserted into the map at that pose, which is what the
+    /// next window then registers against. Retrying costs a second solve on
+    /// the few windows that ask for one.
+    int gateRetriesPerWindow = 0;
     double gateMaxThreshold = 1.0;
     double gateOpenStep = 1.5;
     double gateCloseStep = 0.9;
@@ -267,6 +279,13 @@ private:
 
   /// The gate as it currently stands, at or above `matcher.matchThreshold`.
   double currentGate_ = 0;
+
+  /// True if this window's correspondence count has collapsed against the
+  /// recent median. False until enough windows have been seen to have one.
+  [[nodiscard]] bool gateShouldOpen(std::size_t inliers) const;
+
+  /// Opens the gate by one step, bounded by `gateMaxThreshold`.
+  void openGate();
 
   /// Moves `currentGate_` after a window, and reports whether it is open.
   void adaptGate(std::size_t inliers);

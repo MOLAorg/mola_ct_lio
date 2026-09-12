@@ -66,6 +66,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("gate_open_step", params.gateOpenStep);
   readDouble("gate_close_step", params.gateCloseStep);
   readInt("gate_baseline_windows", params.gateBaselineWindows);
+  readInt("gate_retries_per_window", params.gateRetriesPerWindow);
   readDouble("lidar_balance_smoothing", params.optimizer.lidarBalanceSmoothing);
   readDouble("lidar_balance_outlier_ratio", params.optimizer.lidarBalanceOutlierRatio);
   readInt("lidar_balance_baseline_windows", params.optimizer.lidarBalanceBaselineWindows);
@@ -458,16 +459,33 @@ void CtOdometryEngine::optimizeWindow()
 
   optimizer_.params = params.optimizer;
 
+  const auto matchFn = [this](
+                         std::size_t, const ct::CtSegment & seg,
+                         const std::vector<ct::SegmentPoint> & points,
+                         std::vector<ct::PointCorrespondence> & out) {
+    mrpt::system::CTimeLoggerEntry tle(profiler, "optimizeWindow.match");
+    matcher_.match(seg, points, out);
+  };
+
   mrpt::system::CTimeLoggerEntry tleOpt(profiler, "optimizeWindow");
-  const auto result = optimizer_.optimize(
-    knots, segments,
-    [this](
-      std::size_t, const ct::CtSegment & seg, const std::vector<ct::SegmentPoint> & points,
-      std::vector<ct::PointCorrespondence> & out) {
-      mrpt::system::CTimeLoggerEntry tle(profiler, "optimizeWindow.match");
-      matcher_.match(seg, points, out);
-    },
-    prior_);
+  const std::vector<ct::Knot> predicted = knots;
+  auto result = optimizer_.optimize(knots, segments, matchFn, prior_);
+
+  // A window whose correspondences have collapsed is the one that needs the
+  // wider gate, so it is solved again rather than left to stand while the
+  // widening helps its successor. Restarting from the prediction, not from
+  // the answer just rejected, since that answer is the thing in doubt.
+  for (int retry = 0; retry < params.gateRetriesPerWindow && gateShouldOpen(result.inliers);
+       retry++) {
+    const double before = currentGate_;
+    openGate();
+    if (currentGate_ <= before) {
+      break;  // already at the ceiling, another solve would repeat this one
+    }
+    mrpt::system::CTimeLoggerEntry tleRetry(profiler, "optimizeWindow.gateRetry");
+    knots = predicted;
+    result = optimizer_.optimize(knots, segments, matchFn, prior_);
+  }
   tleOpt.stop();
 
   for (std::size_t i = 0; i < knots.size(); i++) {
@@ -486,13 +504,43 @@ void CtOdometryEngine::optimizeWindow()
  * ones that opened the gate, so a stretch that is genuinely harder moves the
  * baseline with it rather than holding the gate open indefinitely.
  */
+namespace
+{
+/// Windows needed before the running median means anything.
+constexpr std::size_t kMinWindowsForBaseline = 20;
+}  // namespace
+
+bool CtOdometryEngine::gateShouldOpen(std::size_t inliers) const
+{
+  if (params.gateOpenInlierRatio <= 0 || recentInliers_.size() < kMinWindowsForBaseline) {
+    return false;
+  }
+  std::vector<double> sorted = recentInliers_;
+  const auto middle = sorted.begin() + static_cast<std::ptrdiff_t>(sorted.size() / 2);
+  std::nth_element(sorted.begin(), middle, sorted.end());
+  const double median = *middle;
+  if (median <= 0) {
+    return false;
+  }
+  return static_cast<double>(inliers) / median < params.gateOpenInlierRatio;
+}
+
+void CtOdometryEngine::openGate()
+{
+  const double base = params.matcher.matchThreshold;
+  if (currentGate_ <= 0) {
+    currentGate_ = base;
+  }
+  currentGate_ = std::min(
+    currentGate_ * std::max(1.0, params.gateOpenStep), std::max(base, params.gateMaxThreshold));
+  matcher_.params.matchThreshold = static_cast<float>(currentGate_);
+}
+
 void CtOdometryEngine::adaptGate(std::size_t inliers)
 {
   if (params.gateOpenInlierRatio <= 0) {
     return;
   }
-  constexpr std::size_t kMinWindowsForBaseline = 20;
-
   const double base = params.matcher.matchThreshold;
   if (currentGate_ <= 0) {
     currentGate_ = base;
@@ -500,20 +548,10 @@ void CtOdometryEngine::adaptGate(std::size_t inliers)
 
   const auto capacity = static_cast<std::size_t>(std::max(1, params.gateBaselineWindows));
   if (recentInliers_.size() >= kMinWindowsForBaseline) {
-    std::vector<double> sorted = recentInliers_;
-    const auto middle = sorted.begin() + static_cast<std::ptrdiff_t>(sorted.size() / 2);
-    std::nth_element(sorted.begin(), middle, sorted.end());
-    const double median = *middle;
-
-    if (median > 0) {
-      const double ratio = static_cast<double>(inliers) / median;
-      if (ratio < params.gateOpenInlierRatio) {
-        currentGate_ = std::min(
-          currentGate_ * std::max(1.0, params.gateOpenStep),
-          std::max(base, params.gateMaxThreshold));
-      } else {
-        currentGate_ = std::max(base, currentGate_ * std::clamp(params.gateCloseStep, 0.0, 1.0));
-      }
+    if (gateShouldOpen(inliers)) {
+      openGate();
+    } else {
+      currentGate_ = std::max(base, currentGate_ * std::clamp(params.gateCloseStep, 0.0, 1.0));
       matcher_.params.matchThreshold = static_cast<float>(currentGate_);
     }
   }
