@@ -66,12 +66,12 @@ lidar_balance_min_dof: ${CTLIO_BALANCE_MIN_DOF|200}
 lidar_balance_smoothing: ${CTLIO_BALANCE_SMOOTH|0.0}
 # Bounds how far one window's residuals may pull the balance down, as a
 # multiple of the running median. One-sided on purpose, see WindowOptimizer.h.
-lidar_balance_outlier_ratio: ${CTLIO_BALANCE_OUTLIER|0.0}
+lidar_balance_outlier_ratio: ${CTLIO_BALANCE_OUTLIER|3.0}
 lidar_balance_baseline_windows: ${CTLIO_BALANCE_BASELINE|100}
 # Ceiling on the balance, in proportion to how evenly the geometry constrains
 # translation. A degenerate view fits well and so asks for the most weight,
 # which is exactly when it should get least. See WindowOptimizer.h.
-lidar_balance_conditioning_reference: ${CTLIO_BALANCE_COND|0.0}
+lidar_balance_conditioning_reference: ${CTLIO_BALANCE_COND|0.10}
 starvation_ratio: ${CTLIO_STARVATION|0.0}
 # A segment whose points carry their own capture times is ready to close a
 # whole sweep before the inertial samples spanning it arrive. Waiting costs

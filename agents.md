@@ -1030,3 +1030,30 @@ Note which tail this lives in. The high-residual windows are *better*
 conditioned than average, because well-conditioned geometry is what makes
 misfit show up as residual at all. Looking at residual spikes will not find
 this; it is the quiet windows that are dangerous.
+
+## The two balance guards are defaults, and why both
+
+Neither alone rescues a mission that loses its correspondences. Measured on
+the longest construction-site mission, absolute trajectory error:
+
+| correspondence gate | outlier ratio + conditioning bound | ATE |
+|---|---|---|
+| 0.2 m | off | 0.497 |
+| 0.2 m | on | 0.251 |
+| 0.8 m | off | 0.235 |
+| **0.8 m** | **on** | **0.026** |
+
+Each change alone reaches about 0.24; together they reach 0.026. The wide gate
+keeps enough correspondences to survive the stretch, and the guards stop the
+balance handing the LiDAR its full ceiling while the block is rank deficient.
+Remove either and the trajectory does not recover.
+
+They cost nothing where nothing is wrong: across seven well-conditioned
+missions the difference is in the fifth decimal, five of them marginally
+better.
+
+**The screening lesson.** The 0.2 m gate was adopted because it is worth 6.9%
+on the mean of those same seven. None of them contains a stretch that can
+exercise a robustness parameter, so the screen could not have caught what it
+cost. A parameter whose purpose is what happens when things go wrong has to be
+screened on a mission where things go wrong.
