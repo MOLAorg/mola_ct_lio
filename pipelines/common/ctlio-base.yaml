@@ -143,6 +143,15 @@ max_plane_deviation_for_cov: ${CTLIO_PLANE_DEV_COV|0.0}
 
 # --- matcher ---
 match_threshold: ${CTLIO_MATCH_TH|0.8}
+# An adaptive gate: tight in steady state, opened while the correspondence
+# count is collapsing against its own recent median, relaxed once it recovers.
+# Zero leaves the gate fixed. See CtOdometryEngine.h for why the count and not
+# the residual is the signal.
+gate_open_inlier_ratio: ${CTLIO_GATE_RATIO|0.0}
+gate_max_threshold: ${CTLIO_GATE_MAX|1.0}
+gate_open_step: ${CTLIO_GATE_OPEN|1.5}
+gate_close_step: ${CTLIO_GATE_CLOSE|0.9}
+gate_baseline_windows: ${CTLIO_GATE_BASELINE|100}
 match_threshold_far: ${CTLIO_MATCH_TH_FAR|0.0}
 match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
 match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}

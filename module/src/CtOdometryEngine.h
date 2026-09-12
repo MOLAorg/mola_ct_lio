@@ -118,6 +118,32 @@ public:
 
     ct::WindowOptimizer::Params optimizer;
     CtMapMatcher::Params matcher;
+
+    /// Widen the correspondence gate when the fit says it is needed, and let
+    /// it fall back when it is not. Zero disables, leaving the gate fixed at
+    /// `matcher.matchThreshold`.
+    ///
+    /// The corpus wants two different gates and neither is right everywhere:
+    /// a tight one is worth several percent on ordinary data, and costs an
+    /// order of magnitude on the one mission that meets a stretch its
+    /// prediction cannot follow, where two thirds of the correspondences fall
+    /// outside the window at once and never come back.
+    ///
+    /// The trouble signal is the correspondence count against its own recent
+    /// median, not the residual. In the windows that matter the residual is
+    /// *small*, because a view that constrains few directions fits well in
+    /// the ones it does; what collapses is how many matches survive the gate
+    /// while the segment's own point count does not move at all.
+    ///
+    /// The gate opens by `gateOpenStep` for as long as the ratio stays below
+    /// `gateOpenInlierRatio`, up to `gateMaxThreshold`, and relaxes by
+    /// `gateCloseStep` once it recovers, so the tight gate is what runs in
+    /// steady state and the wide one is a response to evidence.
+    double gateOpenInlierRatio = 0.0;
+    double gateMaxThreshold = 1.0;
+    double gateOpenStep = 1.5;
+    double gateCloseStep = 0.9;
+    int gateBaselineWindows = 100;
   };
 
   Params params;
@@ -234,6 +260,16 @@ private:
 
   ct::MarginalizationPrior prior_;
   ct::WindowOptimizer::Result lastResult_;
+
+  /// Recent correspondence counts, for the median the gate is judged against.
+  std::vector<double> recentInliers_;
+  std::size_t recentInliersNext_ = 0;
+
+  /// The gate as it currently stands, at or above `matcher.matchThreshold`.
+  double currentGate_ = 0;
+
+  /// Moves `currentGate_` after a window, and reports whether it is open.
+  void adaptGate(std::size_t inliers);
 
   bool started_ = false;
   bool finished_ = false;

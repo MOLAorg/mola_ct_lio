@@ -61,6 +61,11 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("odometry_sigma_lin", params.optimizer.odometrySigmaLin);
   readDouble("odometry_sigma_ang", params.optimizer.odometrySigmaAng);
   readDouble("lidar_balance_min_dof", params.optimizer.lidarBalanceMinDof);
+  readDouble("gate_open_inlier_ratio", params.gateOpenInlierRatio);
+  readDouble("gate_max_threshold", params.gateMaxThreshold);
+  readDouble("gate_open_step", params.gateOpenStep);
+  readDouble("gate_close_step", params.gateCloseStep);
+  readInt("gate_baseline_windows", params.gateBaselineWindows);
   readDouble("lidar_balance_smoothing", params.optimizer.lidarBalanceSmoothing);
   readDouble("lidar_balance_outlier_ratio", params.optimizer.lidarBalanceOutlierRatio);
   readInt("lidar_balance_baseline_windows", params.optimizer.lidarBalanceBaselineWindows);
@@ -470,6 +475,57 @@ void CtOdometryEngine::optimizeWindow()
   }
 
   lastResult_ = result;
+  adaptGate(result.inliers);
+}
+
+/** Opens the correspondence gate while the fit is losing matches, and lets it
+ * fall back once it is not. See the parameters' documentation for why the
+ * count, and not the residual, is what says a window is in trouble.
+ *
+ * The median is taken over what the windows actually returned, including the
+ * ones that opened the gate, so a stretch that is genuinely harder moves the
+ * baseline with it rather than holding the gate open indefinitely.
+ */
+void CtOdometryEngine::adaptGate(std::size_t inliers)
+{
+  if (params.gateOpenInlierRatio <= 0) {
+    return;
+  }
+  constexpr std::size_t kMinWindowsForBaseline = 20;
+
+  const double base = params.matcher.matchThreshold;
+  if (currentGate_ <= 0) {
+    currentGate_ = base;
+  }
+
+  const auto capacity = static_cast<std::size_t>(std::max(1, params.gateBaselineWindows));
+  if (recentInliers_.size() >= kMinWindowsForBaseline) {
+    std::vector<double> sorted = recentInliers_;
+    const auto middle = sorted.begin() + static_cast<std::ptrdiff_t>(sorted.size() / 2);
+    std::nth_element(sorted.begin(), middle, sorted.end());
+    const double median = *middle;
+
+    if (median > 0) {
+      const double ratio = static_cast<double>(inliers) / median;
+      if (ratio < params.gateOpenInlierRatio) {
+        currentGate_ = std::min(
+          currentGate_ * std::max(1.0, params.gateOpenStep),
+          std::max(base, params.gateMaxThreshold));
+      } else {
+        currentGate_ = std::max(base, currentGate_ * std::clamp(params.gateCloseStep, 0.0, 1.0));
+      }
+      matcher_.params.matchThreshold = static_cast<float>(currentGate_);
+    }
+  }
+
+  if (inliers > 0) {
+    if (recentInliers_.size() < capacity) {
+      recentInliers_.push_back(static_cast<double>(inliers));
+    } else {
+      recentInliers_[recentInliersNext_ % capacity] = static_cast<double>(inliers);
+    }
+    recentInliersNext_++;
+  }
 }
 
 void CtOdometryEngine::slideWindow()
