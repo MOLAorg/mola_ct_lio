@@ -62,9 +62,10 @@ from either is one draw from a wide distribution rather than a measurement.
 
 ## Usage
 
-`mola-ct-lio-cli` replays a rosbag offline. The two pipelines under
-`pipelines/` carry a documented default and an environment override for every
-parameter:
+`mola-ct-lio-cli` replays a rosbag offline. Every parameter carries a
+documented default and an environment override, all of them in the shared
+`pipelines/common/ctlio-base.yaml`; each per-dataset file under `pipelines/`
+imports that base and rebinds only the knobs its dataset actually changes:
 
 ```bash
 mola-ct-lio-cli -c pipelines/ctlio-oxford-spires.yaml \

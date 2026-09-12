@@ -4,143 +4,36 @@
 # Legged robot, Hesai at 10 Hz with a per-point time field, plus an IMU.
 #
 # The rig's base frame is called `base`, not `base_link`, so the bag readers
-# need MOLA_TF_BASE_LINK=base or no scan will resolve a pose at all.
+# need MOLA_TF_BASE_LINK=base or no scan will resolve a pose at all. The bag
+# also carries /tf, so the LiDAR extrinsic is resolved there and the base's
+# identity default is the right one.
 #
-# Every knob here is listed with its sweep range in the repository's agents.md.
+# The `$define` block below rebinds the base's `${VAR|default}` hooks in place;
+# an env var of the same name still overrides it. Every knob, with its sweep
+# range, is in the repository's agents.md.
 # -----------------------------------------------------------------------------
 
-lidar_sensor_label: "lidar"
-imu_sensor_label: "imu"
-odometry_sensor_label: "odometry"
+$define:
+  # IMPORTANT: the only Hesai topic these bags carry is
+  # `/boxi/hesai/points_undistorted`, i.e. the provider has ALREADY motion
+  # compensated the cloud onto a single instant. It nonetheless keeps its
+  # per-point time field, so the times look perfectly usable while the geometry
+  # is already corrected, and placing each point at its own pose would apply
+  # the correction a second time.
+  #
+  # So the scans are read as single-instant observations, and the knot spacing
+  # is set to the scan period rather than a fraction of it: each scan then
+  # constrains exactly one knot. This costs the method its continuous-time
+  # advantage on this dataset, but it is the only correct reading of the data.
+  # A raw, distorted Hesai bag would restore it; none is published here.
+  CTLIO_ALREADY_DESKEWED: true
+  CTLIO_SEG_INTERVAL: 0.1
 
-# IMPORTANT: the only Hesai topic these bags carry is
-# `/boxi/hesai/points_undistorted`, i.e. the provider has ALREADY motion
-# compensated the cloud onto a single instant. It nonetheless keeps its
-# per-point time field, so the times look perfectly usable while the geometry
-# is already corrected, and placing each point at its own pose would apply the
-# correction a second time.
-#
-# So the scans are read as single-instant observations, and the knot spacing is
-# set to the scan period rather than a fraction of it: each scan then
-# constrains exactly one knot. This costs the method its continuous-time
-# advantage on this dataset, but it is the only correct reading of the data.
-# A raw, distorted Hesai bag would restore it; none is published here.
-clouds_already_deskewed: ${CTLIO_ALREADY_DESKEWED|true}
+  # Higher than the Oxford pipeline's, and deliberately so. This dataset's
+  # confined missions hold a few hundred occupied cells per scan where Oxford
+  # holds thousands, so the floor has to sit above what Oxford normally
+  # delivers to do anything here. It is worth 2.4x on arc-2 and 1.5x on arc-3,
+  # and costs Oxford a factor of two, which is why it is set per dataset.
+  CTLIO_MIN_SEG_PTS: 5000
 
-# The bag carries /tf, so the extrinsic is resolved there and this stays at
-# identity. Points are moved into the body frame on arrival, because that is
-# the frame the inertial factors live in, so the reported trajectory is
-# `map -> base_link` directly.
-baselink2lidar_pose_str: "${CTLIO_BASELINK2LIDAR|0 0 0 0 0 0}"
-
-# Not used here: the scans are read as single-instant observations, see above.
-# The module logs which timing path it actually took, at INFO, on the first scan.
-fallback_scan_period: 0.1
-
-# --- trajectory ---
-# 40 ms knots against a 100 ms sweep means 2.5 segments per scan, which is what
-# makes this continuous-time rather than scan-to-map.
-# Phase offset stays at zero. Moving it to half a segment was tried on the
-# reasoning that it centers an undivided scan between its two knots; measured,
-# it costs snow-2 a factor of seven (0.021 m against 0.131 m) and helps
-# nothing. See agents.md.
-segment_interval: ${CTLIO_SEG_INTERVAL|0.1}
-knot_count: ${CTLIO_KNOT_COUNT|4}
-segment_phase_offset: ${CTLIO_SEG_PHASE|0.0}
-
-# --- solver ---
-max_iterations: ${CTLIO_MAX_ITERS|25}
-rematch_every: ${CTLIO_REMATCH_EVERY|2}
-convergence_threshold: ${CTLIO_CONVERGE_TH|0.001}
-lambda: ${CTLIO_LAMBDA|0.0}
-relinearize_each_slide: ${CTLIO_RELIN|false}
-max_step_translation: ${CTLIO_MAX_STEP|1.0}
-max_step_velocity: ${CTLIO_MAX_STEP_V|2.0}
-lidar_balance: ${CTLIO_LIDAR_BALANCE|TwoSided}
-lidar_balance_max_scale: ${CTLIO_LIDAR_BALANCE_MAX|1000.0}
-lidar_balance_min_dof: ${CTLIO_BALANCE_MIN_DOF|200}
-lidar_balance_smoothing: ${CTLIO_BALANCE_SMOOTH|0.0}
-# Bounds how far one window's residuals may pull the balance down, as a
-# multiple of the running median. One-sided on purpose, see WindowOptimizer.h.
-lidar_balance_outlier_ratio: ${CTLIO_BALANCE_OUTLIER|0.0}
-lidar_balance_baseline_windows: ${CTLIO_BALANCE_BASELINE|100}
-# Ceiling on the balance, in proportion to how evenly the geometry constrains
-# translation. A degenerate view fits well and so asks for the most weight,
-# which is exactly when it should get least. See WindowOptimizer.h.
-lidar_balance_conditioning_reference: ${CTLIO_BALANCE_COND|0.0}
-starvation_ratio: ${CTLIO_STARVATION|0.0}
-# A segment whose points carry their own capture times is ready to close a
-# whole sweep before the inertial samples spanning it arrive. Waiting costs
-# nothing; building the factor from partial coverage gives a wrong
-# measurement rather than a weak one. See agents.md.
-max_imu_wait_segments: ${CTLIO_IMU_WAIT|3.0}
-min_imu_coverage: ${CTLIO_IMU_COVERAGE|0.98}
-velocity_prior_sigma: ${CTLIO_VEL_PRIOR|5.0}
-bias_prior_sigma_acc: ${CTLIO_BIAS_PRIOR_ACC|0.3}
-bias_prior_sigma_gyro: ${CTLIO_BIAS_PRIOR_GYRO|0.02}
-kernel: ${CTLIO_KERNEL|Cauchy}
-kernel_scale: ${CTLIO_KERNEL_SCALE|0.5}
-
-# --- inertial ---
-use_imu: ${CTLIO_USE_IMU|true}
-# Temporal calibration between the LiDAR and IMU clocks. A continuous-time
-# estimator is unusually exposed to this: with real per-point times both
-# sensors constrain the same motion, so an offset is a direct conflict
-# rather than a bias. See agents.md.
-imu_time_offset: ${CTLIO_IMU_DT|0.0}
-gyro_noise_density: ${CTLIO_GYRO_SIGMA|1.7e-4}
-# The accelerometer weight is an EFFECTIVE one, not the datasheet figure.
-# At the sensor's nominal 2e-3 the inertial factors carry some four orders of
-# magnitude more information than the whole LiDAR block, so the trajectory
-# follows the integrated IMU and the geometry cannot correct it. Measured on
-# observatory-quarter-01, APE against ground truth: 2e-3 -> 0.737 m,
-# 1e-2 -> 6.285 m, 5e-2 -> 0.039 m, 2e-1 -> 0.041 m. It is flat from 5e-2 on,
-# and 1e-2 is not a smooth interpolation between the two ends but a blow-up,
-# so do not read this axis as monotonic. See agents.md.
-accel_noise_density: ${CTLIO_ACCEL_SIGMA|5.0e-2}
-bias_sigma_acc: ${CTLIO_BIAS_SIGMA_ACC|1e-3}
-bias_sigma_gyro: ${CTLIO_BIAS_SIGMA_GYRO|1e-4}
-# External odometry: OFF. The factor works and is worth 5% on arc-2 and 8% on
-# arc-3, but fusing a second pose source while the LiDAR-inertial core still
-# has unexplained failures only makes those harder to read. It stays available
-# and disabled until the core is understood on its own.
-odometry_sigma_lin: ${CTLIO_ODO_SIGMA_LIN|0.0}
-odometry_sigma_ang: ${CTLIO_ODO_SIGMA_ANG|0.0}
-# Only used when use_imu is false, where it stands in for the inertial factors.
-twist_continuity_weight: ${CTLIO_TWIST_W|2.0}
-
-# --- points ---
-# The legged carrier puts its own body in the near field, which acts as a
-# false zero-motion constraint if it is kept.
-min_range: ${CTLIO_MIN_RANGE|1.0}
-max_range: ${CTLIO_MAX_RANGE|100.0}
-source_voxel_size: ${CTLIO_DS_SIZE|0.4}
-source_voxel_stride: ${CTLIO_DS_STRIDE|1}
-# Higher than the Oxford pipeline's, and deliberately so. This dataset's
-# confined missions hold a few hundred occupied cells per scan where
-# Oxford holds thousands, so the floor has to sit above what Oxford
-# normally delivers to do anything here. It is worth 2.4x on arc-2 and
-# 1.5x on arc-3, and costs Oxford a factor of two, which is why it is set
-# per dataset rather than globally.
-min_segment_points: ${CTLIO_MIN_SEG_PTS|5000}
-map_voxel_size: ${CTLIO_VOXEL_SIZE|0.4}
-
-# --- map ---
-map_radius: ${CTLIO_MAP_RADIUS|120.0}
-map_prune_period: ${CTLIO_PRUNE_PERIOD|25}
-k_correspondences_for_cov: ${CTLIO_K_COV|20}
-min_correspondences_for_cov: ${CTLIO_MIN_K_COV|5}
-max_distance_for_cov: ${CTLIO_MAX_DIST_COV|1.0}
-max_plane_deviation_for_cov: ${CTLIO_PLANE_DEV_COV|0.0}
-
-# --- matcher ---
-match_threshold: ${CTLIO_MATCH_TH|0.8}
-match_threshold_far: ${CTLIO_MATCH_TH_FAR|0.0}
-match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
-match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}
-
-# --- output ---
-# Per-stage timings, printed at the end of the run. Off by default: the
-# breakdown is what says whether the cost is matching, assembly or solve.
-profiler_enabled: ${CTLIO_PROFILE|false}
-map_publish_period: 0.5
+$import: common/ctlio-base.yaml

@@ -12,7 +12,8 @@ Design document: `~/plans/lio/detail/lio-ct-lio-design.md`.
 | `core/` | the estimator. Eigen only, no ROS/MRPT/MOLA, so it builds and tests standalone |
 | `module/` | the MOLA front end: map, matchers, dataset input |
 | `apps/` | offline CLI |
-| `pipelines/`, `mola-cli-launchs/` | per-dataset configuration |
+| `pipelines/` | per-dataset configuration: `common/ctlio-base.yaml` holds every knob, each file next to it `$import`s that base and `$define`s only what its dataset changes |
+| `mola-cli-launchs/` | MOLA launcher configs |
 
 ## Build and test
 
@@ -35,8 +36,10 @@ reduction over points must be a deterministic one.
 ## Tuning parameters
 
 Every knob, with its default and the range worth sweeping. Env-var overrides
-follow the `${CTLIO_NAME|default}` pattern in the pipeline YAMLs. Keep this
-table in sync when adding a parameter.
+follow the `${CTLIO_NAME|default}` pattern, and all of them live once in
+`pipelines/common/ctlio-base.yaml`; a dataset file changes one by `$define`-ing
+the same name, which the environment still overrides. Add a parameter to the
+base file and to this table together.
 
 ### Trajectory and window (`WindowOptimizer::Params`, estimator)
 
@@ -62,7 +65,7 @@ table in sync when adding a parameter.
 | `starvation_ratio` | `CTLIO_STARVATION` | 0 (off) | 0 - 0.5 | a segment holding this fraction of the recent average is held out of the map. 0 disables |
 | `lidar_balance_min_dof` | `CTLIO_BALANCE_MIN_DOF` | 200 | 50 - 1000 | degrees of freedom the LiDAR block needs before its reduced chi-square is acted on |
 | `segment_phase_offset` | `CTLIO_SEG_PHASE` | 0.0 | 0.0 - 0.5 | where in a segment the first scan lands. Only worth moving when a provider gives one instant per scan |
-| `lidar_balance` | `CTLIO_LIDAR_BALANCE` | None | None, DownOnly, TwoSided | reconciles the LiDAR block's weight with its own residuals, see below |
+| `lidar_balance` | `CTLIO_LIDAR_BALANCE` | TwoSided | None, DownOnly, TwoSided | reconciles the LiDAR block's weight with its own residuals, see below |
 | `lidar_balance_max_scale` | `CTLIO_LIDAR_BALANCE_MAX` | 1000 | 100 - 1e4 | how far the balance may rescale the block in either direction |
 | `twist_continuity_weight` | `CTLIO_TWIST_W` | 2.0 | 0 - 10 | LiDAR-only only; ignored once IMU factors are present |
 
@@ -94,7 +97,7 @@ table in sync when adding a parameter.
 |---|---|---|---|---|
 | `ds_size` | `CTLIO_DS_SIZE` | 0.4 m | 0.2 - 1.0 | per-segment voxel downsample of the source points |
 | `source_voxel_stride` | `CTLIO_DS_STRIDE` | 1 | 1 - 3 | keep one occupied source voxel in this many; thins without coarsening |
-| `min_segment_points` | `CTLIO_MIN_SEG_PTS` | 0 Oxford / 5000 grand-tour | 0 - 5000 | a short segment is re-decimated on a finer cell until it clears this. 0 disables |
+| `min_segment_points` | `CTLIO_MIN_SEG_PTS` | 0 Oxford / 5000 grand-tour / 2500 KITTI | 0 - 5000 | a short segment is re-decimated on a finer cell until it clears this. 0 disables |
 | `min_range` | `CTLIO_MIN_RANGE` | 1.0 m | 0.3 - 3.0 | Oxford needs 1.0, KITTI 0.3 |
 | `max_range` | `CTLIO_MAX_RANGE` | 100 m | 50 - 150 | |
 | `decimation` | `CTLIO_DECIMATION` | 1 | 1 - 4 | the corpus has a standing result that decimation is free in both directions |
