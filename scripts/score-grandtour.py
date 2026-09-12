@@ -52,8 +52,19 @@ import re as _re
 
 _DEFAULT = ("0.0764 -0.0361 0.2803 0.0000 -0.0000 179.9954", False)
 
+# The prism reference exists for missions whose CI entry names the RTK-INS
+# mount, because a mission can publish both. The file says which mount it is
+# anchored to, and the file wins: reading the mission's entry instead applies
+# the 0.29 m lever to a 0.64 m reference, which is larger than the errors
+# being measured.
+_PRISM = ("0.3852 0.0022 0.5152 0.5425 0.1622 179.3402", True)
+
 def offset_for(gt_path):
     """base -> GT mount for the mission owning `gt_path`, from the CI map."""
+    if gt_path.endswith("gt_prism.tum"):
+        spec, xyz = _PRISM
+        v = [float(x) for x in spec.split()]
+        return np.array(v[:3]), ypr_to_R(v[3], v[4], v[5]), xyz
     try:
         txt = open("/opt/mola-ci/dataset-map.yml").read()
     except OSError:
