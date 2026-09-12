@@ -68,6 +68,7 @@ base file and to this table together.
 | `segment_phase_offset` | `CTLIO_SEG_PHASE` | 0.0 | 0.0 - 0.5 | where in a segment the first scan lands. Only worth moving when a provider gives one instant per scan |
 | `lidar_balance` | `CTLIO_LIDAR_BALANCE` | TwoSided | None, DownOnly, TwoSided | reconciles the LiDAR block's weight with its own residuals, see below |
 | `lidar_balance_max_scale` | `CTLIO_LIDAR_BALANCE_MAX` | 1000 | 100 - 1e4 | how far the balance may rescale the block in either direction |
+| `lidar_balance_core_radius` | `CTLIO_BALANCE_CORE` | 0 (off) | 0.1 - 0.4 | residual radius the balance's reduced chi-square is taken over, so the noise estimate does not move with the acceptance gate |
 | `twist_continuity_weight` | `CTLIO_TWIST_W` | 2.0 | 0 - 10 | LiDAR-only only; ignored once IMU factors are present |
 
 ### Residual weighting
