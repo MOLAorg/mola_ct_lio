@@ -261,6 +261,24 @@ public:
     /// How many recent windows the running median above is taken over.
     int lidarBalanceBaselineWindows = 100;
 
+    /// The translational conditioning at which the balance is allowed its
+    /// full range. Below it the ceiling falls in proportion. Zero disables
+    /// the bound.
+    ///
+    /// A view that constrains position only within a plane, or only along a
+    /// line, still fits well in the directions it does constrain, so its
+    /// residuals are small and a residual-driven balance reads that as
+    /// precision. The weight it then awards lands on a block that is rank
+    /// deficient, and it arrives in every direction, including the one the
+    /// geometry says nothing about. What was holding that direction is the
+    /// inertial term, and it is what gets overwhelmed.
+    ///
+    /// Measured: on grand-tour the balance's logarithm is *negatively*
+    /// correlated with the conditioning's on thirteen of fourteen missions,
+    /// and the windows that reach the ceiling are six to nine times worse
+    /// conditioned than that mission's own median.
+    double lidarBalanceConditioningReference = 0.0;
+
     /// Uncertainty of an external odometry's relative motion over one
     /// segment. Zero on either disables that half, which is the default: the
     /// factor is measured and useful, but a second pose source fused while

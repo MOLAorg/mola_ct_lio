@@ -280,7 +280,14 @@ void WindowOptimizer::assemble(
       }
     }
 
-    const double maxScale = std::max(1.0, params.lidarBalanceMaxScale);
+    // The ceiling is what the geometry can support, not a constant: see the
+    // parameter's documentation for why a degenerate view asks for the most.
+    double maxScale = std::max(1.0, params.lidarBalanceMaxScale);
+    if (params.lidarBalanceConditioningReference > 0) {
+      const double earned = std::clamp(
+        result.lidarPositionConditioning / params.lidarBalanceConditioningReference, 0.0, 1.0);
+      maxScale = std::max(1.0, maxScale * earned);
+    }
     if (kappa > 0 && std::isfinite(kappa)) {
       result.lidarScaleInstant = std::clamp(1.0 / kappa, 1.0 / maxScale, maxScale);
     }
