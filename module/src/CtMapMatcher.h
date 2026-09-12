@@ -21,6 +21,7 @@
 #include <mrpt/system/CTimeLogger.h>
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace mola
@@ -46,6 +47,35 @@ public:
   CtMapMatcher();
   ~CtMapMatcher();
 
+  /** Which point of an occupied voxel stands for the voxel after decimation.
+   *
+   * The names match `mp2p_icp_filters::DecimateMethod` where the rule is the
+   * same one, so that a result measured here transfers upstream.
+   */
+  enum class DecimateMethod
+  {
+    /// The first point reaching the voxel, i.e. the earliest in scan order.
+    FirstPoint,
+
+    /// The k-th point of the k-th occupied voxel, modulo how many it holds.
+    /// Whatever scan order does to the choice is then spread across the
+    /// voxels instead of applying to all of them the same way.
+    RotatingIndex,
+
+    /// The mean of the voxel's points. Not one of the input points.
+    Centroid,
+
+    /// The input point nearest the voxel's geometric center.
+    ClosestToCenter,
+
+    /// The input point nearest the mean of the voxel's points.
+    ClosestToAverage,
+
+    /// One input point picked by hashing the voxel's own coordinates, so the
+    /// choice is arbitrary with respect to scan order yet reproducible.
+    RandomPoint
+  };
+
   struct Params
   {
     /// Voxel size used to decimate a segment's points before matching. [m]
@@ -69,6 +99,10 @@ public:
 
     /// Voxel size used to decimate points on their way into the map. [m]
     double mapVoxelSize = 0.4;
+
+    /// How an occupied voxel's representative point is chosen, for both the
+    /// source cloud and the map.
+    DecimateMethod decimateMethod = DecimateMethod::FirstPoint;
 
     /// Let the map rebuild its search tree on a background thread.
     ///
@@ -110,14 +144,39 @@ public:
 
   void initialize(const mrpt::containers::yaml & cfg);
 
-  /** Keeps one point per voxel, the first one seen.
+  /** Keeps one point per occupied voxel, chosen by `method`.
    *
    * Deterministic by construction: the voxel keys are visited in a total
-   * order that does not depend on the input order beyond which point is
-   * first in each cell.
+   * order fixed by the geometry, every rule reads only the point data, and
+   * the survivors come back in the input's own order.
    */
   [[nodiscard]] static std::vector<ct::SegmentPoint> downsample(
-    const std::vector<ct::SegmentPoint> & in, double voxelSize, int stride = 1);
+    const std::vector<ct::SegmentPoint> & in, double voxelSize, int stride = 1,
+    DecimateMethod method = DecimateMethod::FirstPoint);
+
+  /** How far a decimation rule's chosen points sit from their voxels' means.
+   *
+   * Diagnostic only: a rule whose mean offset is not zero moves the cloud
+   * bodily, and if the direction holds in the body frame it turns into a
+   * heading-dependent error rather than noise.
+   */
+  struct DecimationBias
+  {
+    std::size_t voxels = 0;
+    std::size_t points = 0;
+
+    /// Mean over voxels of (chosen point - voxel mean), in the input frame.
+    ct::Vec3 meanOffset = ct::Vec3::Zero();
+
+    /// Root mean square of the same offset's length.
+    double rmsOffset = 0;
+  };
+
+  [[nodiscard]] static DecimationBias measureBias(
+    const std::vector<ct::SegmentPoint> & in, double voxelSize, DecimateMethod method);
+
+  /** Parses the YAML spelling of a decimation method. */
+  [[nodiscard]] static DecimateMethod decimateMethodFromString(const std::string & s);
 
   /** Correspondence query for one segment, in the form the estimator wants. */
   void match(

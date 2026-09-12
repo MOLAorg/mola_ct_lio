@@ -16,9 +16,12 @@
 #include "CtOdometryEngine.h"
 
 #include <mola_imu_preintegration/ImuPreintegrator.h>
+#include <mrpt/core/format.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdlib>
 
 namespace mola
 {
@@ -235,6 +238,43 @@ void CtOdometryEngine::addPoints(const std::vector<TimedPoint> & points)
   closeReadySegments(latest);
 }
 
+void CtOdometryEngine::dumpDecimationBias(double t, const std::vector<ct::SegmentPoint> & raw)
+{
+  using Method = CtMapMatcher::DecimateMethod;
+  static const std::array<Method, 6> kMethods = {Method::FirstPoint,       Method::RotatingIndex,
+                                                 Method::Centroid,         Method::ClosestToCenter,
+                                                 Method::ClosestToAverage, Method::RandomPoint};
+
+  // Diagnostic only, and off unless asked for: it re-groups the segment's
+  // points once per rule, which is not worth paying for in a normal run.
+  if (!biasDumpChecked_) {
+    biasDumpChecked_ = true;
+    const char * path = ::getenv("MOLA_CTLIO_DUMP_VOXEL_BIAS");
+    if (path != nullptr) {
+      biasDump_ = std::make_unique<std::ofstream>(path);
+      *biasDump_ << "# t voxels points then, per rule (first rotating centroid closestCenter "
+                    "closestAverage random): offX offY offZ rms  (body frame)\n";
+    }
+  }
+  if (!biasDump_) {
+    return;
+  }
+
+  *biasDump_ << mrpt::format("%.6f", t);
+  bool wroteCounts = false;
+  for (const auto m : kMethods) {
+    const auto bias = CtMapMatcher::measureBias(raw, params.matcher.sourceVoxelSize, m);
+    if (!wroteCounts) {
+      wroteCounts = true;
+      *biasDump_ << mrpt::format(" %zu %zu", bias.voxels, bias.points);
+    }
+    *biasDump_ << mrpt::format(
+      " %.9f %.9f %.9f %.9f", bias.meanOffset.x(), bias.meanOffset.y(), bias.meanOffset.z(),
+      bias.rmsOffset);
+  }
+  *biasDump_ << "\n";
+}
+
 ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
 {
   ct::Segment seg;
@@ -252,8 +292,11 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
     raw.push_back(sp);
   }
 
-  seg.points =
-    CtMapMatcher::downsample(raw, params.matcher.sourceVoxelSize, params.matcher.sourceVoxelStride);
+  seg.points = CtMapMatcher::downsample(
+    raw, params.matcher.sourceVoxelSize, params.matcher.sourceVoxelStride,
+    params.matcher.decimateMethod);
+
+  dumpDecimationBias(tBegin, raw);
 
   // A segment that came out short is re-decimated on a finer cell. The cell
   // is estimated rather than searched: a LiDAR sweep samples surfaces, so the
@@ -278,7 +321,8 @@ ct::Segment CtOdometryEngine::buildSegment(double tBegin, double tEnd)
     const double shrink = std::clamp(std::sqrt(have / want) * 0.95, 0.2, 0.95);
     cell *= shrink;
 
-    auto finer = CtMapMatcher::downsample(raw, cell, params.matcher.sourceVoxelStride);
+    auto finer = CtMapMatcher::downsample(
+      raw, cell, params.matcher.sourceVoxelStride, params.matcher.decimateMethod);
     if (finer.size() <= seg.points.size()) {
       break;
     }

@@ -20,8 +20,10 @@
 #include <mrpt/system/CTimeLogger.h>
 
 #include <deque>
+#include <fstream>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <vector>
 
 #include "CtMapMatcher.h"
@@ -300,6 +302,13 @@ private:
   std::deque<ct::Segment> segments_;
   std::deque<ImuSample> imu_;
   std::vector<TimedPoint> pending_;
+
+  /// Diagnostic dump of how far decimation moves a voxel's chosen point off
+  /// the voxel's mean. Opened on the first segment, only if asked for.
+  std::unique_ptr<std::ofstream> biasDump_;
+  bool biasDumpChecked_ = false;
+
+  void dumpDecimationBias(double t, const std::vector<ct::SegmentPoint> & raw);
 
   ct::MarginalizationPrior prior_;
   ct::WindowOptimizer::Result lastResult_;

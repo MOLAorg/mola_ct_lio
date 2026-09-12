@@ -127,6 +127,10 @@ source_voxel_stride: ${CTLIO_DS_STRIDE|1}
 # per dataset. See the note in each pipeline.
 min_segment_points: ${CTLIO_MIN_SEG_PTS|0}
 map_voxel_size: ${CTLIO_VOXEL_SIZE|0.4}
+# Which point of an occupied voxel represents it: FirstPoint, RotatingIndex,
+# Centroid, ClosestToCenter, ClosestToAverage or RandomPoint. Applies to both
+# the source cloud and the map.
+decimate_method: ${CTLIO_DECIMATE|FirstPoint}
 
 # --- map ---
 map_radius: ${CTLIO_MAP_RADIUS|120.0}

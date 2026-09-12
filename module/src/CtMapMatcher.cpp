@@ -18,9 +18,12 @@
 #include <mrpt/core/exceptions.h>
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <optional>
+#include <string>
 #include <tuple>
+#include <utility>
 
 namespace mola
 {
@@ -34,6 +37,98 @@ VoxelKey voxelKeyOf(const ct::Vec3 & p, double voxelSize)
   return {
     static_cast<int64_t>(std::floor(p.x() * inv)), static_cast<int64_t>(std::floor(p.y() * inv)),
     static_cast<int64_t>(std::floor(p.z() * inv))};
+}
+
+/** Mean of the points a voxel holds, summed in index order so that two runs
+ * over the same input agree bit for bit. */
+ct::Vec3 voxelMean(const std::vector<ct::SegmentPoint> & in, const std::vector<std::size_t> & idx)
+{
+  ct::Vec3 sum = ct::Vec3::Zero();
+  for (const auto i : idx) {
+    sum += in[i].p;
+  }
+  return sum / static_cast<double>(idx.size());
+}
+
+/** The index, within `idx`, of the point nearest `target`. Ties go to the
+ * earliest candidate, so the answer does not depend on the visiting order. */
+std::size_t nearestTo(
+  const std::vector<ct::SegmentPoint> & in, const std::vector<std::size_t> & idx,
+  const ct::Vec3 & target)
+{
+  std::size_t best = idx.front();
+  double bestSqr = (in[best].p - target).squaredNorm();
+  for (const auto i : idx) {
+    const double d = (in[i].p - target).squaredNorm();
+    if (d < bestSqr) {
+      bestSqr = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** A well-mixed 64-bit hash, so that a voxel's own integer coordinates decide
+ * which of its points is taken. Reproducible, and unrelated to scan order. */
+uint64_t mixKey(const VoxelKey & key)
+{
+  auto mix = [](uint64_t x) {
+    x += 0x9e3779b97f4a7c15ULL;
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    return x ^ (x >> 31);
+  };
+  uint64_t h = mix(static_cast<uint64_t>(std::get<0>(key)));
+  h = mix(h ^ static_cast<uint64_t>(std::get<1>(key)));
+  h = mix(h ^ static_cast<uint64_t>(std::get<2>(key)));
+  return h;
+}
+
+/** The chosen representative of one occupied voxel.
+ *
+ * `ordinal` is the voxel's rank in the deterministic key order, which the
+ * rotating rule uses to walk the choice across neighboring voxels.
+ */
+ct::SegmentPoint pickRepresentative(
+  const std::vector<ct::SegmentPoint> & in, const VoxelKey & key,
+  const std::vector<std::size_t> & idx, std::size_t ordinal, double voxelSize,
+  mola::CtMapMatcher::DecimateMethod method)
+{
+  using Method = mola::CtMapMatcher::DecimateMethod;
+
+  switch (method) {
+    case Method::FirstPoint:
+      return in[idx.front()];
+
+    case Method::RotatingIndex:
+      return in[idx[ordinal % idx.size()]];
+
+    case Method::Centroid: {
+      ct::SegmentPoint out;
+      out.p = voxelMean(in, idx);
+      double alphaSum = 0;
+      for (const auto i : idx) {
+        alphaSum += in[i].alpha;
+      }
+      out.alpha = alphaSum / static_cast<double>(idx.size());
+      return out;
+    }
+
+    case Method::ClosestToCenter: {
+      const ct::Vec3 center(
+        (static_cast<double>(std::get<0>(key)) + 0.5) * voxelSize,
+        (static_cast<double>(std::get<1>(key)) + 0.5) * voxelSize,
+        (static_cast<double>(std::get<2>(key)) + 0.5) * voxelSize);
+      return in[nearestTo(in, idx, center)];
+    }
+
+    case Method::ClosestToAverage:
+      return in[nearestTo(in, idx, voxelMean(in, idx))];
+
+    case Method::RandomPoint:
+      return in[idx[mixKey(key) % idx.size()]];
+  }
+  return in[idx.front()];
 }
 
 /** The world-frame position of each source point, at its own timestamp. */
@@ -79,6 +174,9 @@ void CtMapMatcher::initialize(const mrpt::containers::yaml & cfg)
     params.minSegmentPoints = cfg["min_segment_points"].as<std::size_t>();
   }
   readDouble("map_voxel_size", params.mapVoxelSize);
+  if (cfg.has("decimate_method")) {
+    params.decimateMethod = decimateMethodFromString(cfg["decimate_method"].as<std::string>());
+  }
   if (cfg.has("map_async_rebuild")) {
     params.mapAsyncRebuild = cfg["map_async_rebuild"].as<bool>();
   }
@@ -110,15 +208,17 @@ void CtMapMatcher::applyCovarianceOptions(IncrementalPointCloud & m) const
 }
 
 std::vector<ct::SegmentPoint> CtMapMatcher::downsample(
-  const std::vector<ct::SegmentPoint> & in, double voxelSize, int stride)
+  const std::vector<ct::SegmentPoint> & in, double voxelSize, int stride, DecimateMethod method)
 {
   if (voxelSize <= 0) {
     return in;
   }
 
-  std::map<VoxelKey, std::size_t> firstInVoxel;
+  // Every point of every occupied voxel, so that a rule can look at the
+  // voxel's contents and not only at whichever point arrived first.
+  std::map<VoxelKey, std::vector<std::size_t>> voxels;
   for (std::size_t i = 0; i < in.size(); i++) {
-    firstInVoxel.emplace(voxelKeyOf(in[i].p, voxelSize), i);
+    voxels[voxelKeyOf(in[i].p, voxelSize)].push_back(i);
   }
 
   // Taking one occupied voxel in `stride` thins the cloud without coarsening
@@ -127,25 +227,86 @@ std::vector<ct::SegmentPoint> CtMapMatcher::downsample(
   // deterministic, so which voxels survive is too.
   const int keepEvery = std::max(1, stride);
 
-  std::vector<std::size_t> kept;
-  kept.reserve(firstInVoxel.size() / static_cast<std::size_t>(keepEvery) + 1);
-  std::size_t visited = 0;
-  for (const auto & [key, index] : firstInVoxel) {
-    if (visited++ % static_cast<std::size_t>(keepEvery) != 0) {
+  // Each survivor is tagged with the index of the voxel's first point, so the
+  // output can be put back into the input's order. That keeps a pairing's
+  // index meaning what the caller expects and ties the summation order to the
+  // input, for the rules whose representative is not an input point too.
+  std::vector<std::pair<std::size_t, ct::SegmentPoint>> kept;
+  kept.reserve(voxels.size() / static_cast<std::size_t>(keepEvery) + 1);
+
+  std::size_t ordinal = 0;
+  for (const auto & [key, indices] : voxels) {
+    const std::size_t thisOrdinal = ordinal++;
+    if (thisOrdinal % static_cast<std::size_t>(keepEvery) != 0) {
       continue;
     }
-    kept.push_back(index);
+    kept.emplace_back(
+      indices.front(), pickRepresentative(in, key, indices, thisOrdinal, voxelSize, method));
   }
-  // Back to the original order, so that a pairing's index still means what the
-  // caller expects and the summation order stays tied to the input:
-  std::sort(kept.begin(), kept.end());
+
+  std::sort(
+    kept.begin(), kept.end(), [](const auto & a, const auto & b) { return a.first < b.first; });
 
   std::vector<ct::SegmentPoint> out;
   out.reserve(kept.size());
-  for (const auto index : kept) {
-    out.push_back(in[index]);
+  for (const auto & [index, point] : kept) {
+    out.push_back(point);
   }
   return out;
+}
+
+CtMapMatcher::DecimationBias CtMapMatcher::measureBias(
+  const std::vector<ct::SegmentPoint> & in, double voxelSize, DecimateMethod method)
+{
+  DecimationBias bias;
+  if (voxelSize <= 0 || in.empty()) {
+    return bias;
+  }
+
+  std::map<VoxelKey, std::vector<std::size_t>> voxels;
+  for (std::size_t i = 0; i < in.size(); i++) {
+    voxels[voxelKeyOf(in[i].p, voxelSize)].push_back(i);
+  }
+
+  ct::Vec3 sum = ct::Vec3::Zero();
+  double sumSqr = 0;
+  std::size_t ordinal = 0;
+  for (const auto & [key, indices] : voxels) {
+    const ct::Vec3 mean = voxelMean(in, indices);
+    const auto rep = pickRepresentative(in, key, indices, ordinal++, voxelSize, method);
+    const ct::Vec3 off = rep.p - mean;
+    sum += off;
+    sumSqr += off.squaredNorm();
+  }
+
+  bias.voxels = voxels.size();
+  bias.points = in.size();
+  bias.meanOffset = sum / static_cast<double>(voxels.size());
+  bias.rmsOffset = std::sqrt(sumSqr / static_cast<double>(voxels.size()));
+  return bias;
+}
+
+CtMapMatcher::DecimateMethod CtMapMatcher::decimateMethodFromString(const std::string & s)
+{
+  if (s == "FirstPoint") {
+    return DecimateMethod::FirstPoint;
+  }
+  if (s == "RotatingIndex") {
+    return DecimateMethod::RotatingIndex;
+  }
+  if (s == "Centroid") {
+    return DecimateMethod::Centroid;
+  }
+  if (s == "ClosestToCenter") {
+    return DecimateMethod::ClosestToCenter;
+  }
+  if (s == "ClosestToAverage") {
+    return DecimateMethod::ClosestToAverage;
+  }
+  if (s == "RandomPoint") {
+    return DecimateMethod::RandomPoint;
+  }
+  THROW_EXCEPTION_FMT("Unknown decimate_method: '%s'", s.c_str());
 }
 
 bool CtMapMatcher::empty() const { return map_->livePointCount() == 0; }
@@ -222,7 +383,7 @@ void CtMapMatcher::insert(
     return;
   }
 
-  const auto decimated = downsample(points, params.mapVoxelSize);
+  const auto decimated = downsample(points, params.mapVoxelSize, 1, params.decimateMethod);
   const std::vector<ct::Vec3> world = deskew(segment, decimated);
 
   map_->reserve(map_->size() + world.size());
