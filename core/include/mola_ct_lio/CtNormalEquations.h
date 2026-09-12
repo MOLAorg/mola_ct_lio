@@ -70,6 +70,11 @@ struct LidarBlock
   double chi2 = 0;
   double errorSum = 0;
   std::size_t inliers = 0;
+  /// Same as `chi2`, but restricted to the correspondences closer than the
+  /// core radius. Equal to `chi2` when no core radius is in force.
+  double coreChi2 = 0;
+  /// Correspondence count behind `coreChi2`.
+  std::size_t coreInliers = 0;
 };
 
 /** Accumulates the LiDAR residuals of one segment onto its two control knots.
@@ -86,10 +91,14 @@ struct LidarBlock
  *                      the floating-point summation order, so it must be
  *                      reproducible for the result to be.
  * @param kernelScale   Kernel scale in meters; ignored for RobustKernel::None.
+ * @param coreRadius    Residual norm, in meters, below which a correspondence
+ *                      also contributes to `LidarBlock::coreChi2`. Pass zero to
+ *                      let every accepted correspondence contribute, which
+ *                      makes `coreChi2` equal to `chi2`.
  */
 [[nodiscard]] LidarBlock assembleSegmentBlock(
   const CtSegment & segment, const CtSegment & jacobianAt, const std::vector<SegmentPoint> & points,
-  const std::vector<PointCorrespondence> & correspondences, RobustKernel kernel,
-  double kernelScale);
+  const std::vector<PointCorrespondence> & correspondences, RobustKernel kernel, double kernelScale,
+  double coreRadius = 0.0);
 
 }  // namespace mola::ct

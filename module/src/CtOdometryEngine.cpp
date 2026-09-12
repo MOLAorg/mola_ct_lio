@@ -78,6 +78,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readInt("lidar_balance_baseline_windows", params.optimizer.lidarBalanceBaselineWindows);
   readDouble(
     "lidar_balance_conditioning_reference", params.optimizer.lidarBalanceConditioningReference);
+  readDouble("lidar_balance_core_radius", params.optimizer.lidarBalanceCoreRadius);
 
   readInt("max_iterations", params.optimizer.maxIterations);
   readInt("rematch_every", params.optimizer.rematchEvery);
@@ -706,6 +707,8 @@ void CtOdometryEngine::emitOldest()
   d.imuPositionInfo = lastResult_.imuPositionInfo;
   d.priorPositionInfo = lastResult_.priorPositionInfo;
   d.lidarChi2 = lastResult_.lidarChi2;
+  d.lidarCoreChi2 = lastResult_.lidarCoreChi2;
+  d.lidarCoreDof = lastResult_.lidarCoreDof;
   d.lidarDof = lastResult_.lidarDof;
   d.lidarScale = lastResult_.lidarScale;
   d.lidarPositionConditioning = lastResult_.lidarPositionConditioning;

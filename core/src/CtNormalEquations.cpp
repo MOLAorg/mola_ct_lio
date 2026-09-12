@@ -50,7 +50,8 @@ double robustWeight(RobustKernel kernel, double scale, double residualSquaredNor
  */
 void accumulateOne(
   const CtSegment & segment, const CtSegment & jacobianAt, const std::vector<SegmentPoint> & points,
-  const PointCorrespondence & c, RobustKernel kernel, double kernelScale, LidarBlock & out)
+  const PointCorrespondence & c, RobustKernel kernel, double kernelScale, double coreRadiusSquared,
+  LidarBlock & out)
 {
   if (c.localIndex >= points.size()) {
     return;
@@ -71,11 +72,22 @@ void accumulateOne(
 
   const Eigen::Matrix<double, 12, 3> JtOmega = J.transpose() * c.information;
 
+  const double weightedChi2 = weight * residual.dot(c.information * residual);
+
   out.H.noalias() += weight * JtOmega * J;
   out.g.noalias() += weight * JtOmega * residual;
-  out.chi2 += weight * residual.dot(c.information * residual);
+  out.chi2 += weightedChi2;
   out.errorSum += residual.norm();
   out.inliers++;
+
+  // The balance reads this sum as an estimate of the sensor noise scale, so it
+  // has to be taken over a population that does not move when the acceptance
+  // radius does. Widening the radius otherwise looks like a noisier sensor and
+  // costs the LiDAR term weight it should keep.
+  if (coreRadiusSquared <= 0 || residual.squaredNorm() <= coreRadiusSquared) {
+    out.coreChi2 += weightedChi2;
+    out.coreInliers++;
+  }
 }
 
 LidarBlock operator+(const LidarBlock & a, const LidarBlock & b)
@@ -86,6 +98,8 @@ LidarBlock operator+(const LidarBlock & a, const LidarBlock & b)
   out.chi2 = a.chi2 + b.chi2;
   out.errorSum = a.errorSum + b.errorSum;
   out.inliers = a.inliers + b.inliers;
+  out.coreChi2 = a.coreChi2 + b.coreChi2;
+  out.coreInliers = a.coreInliers + b.coreInliers;
   return out;
 }
 
@@ -102,14 +116,18 @@ constexpr std::size_t kGrainSize = 512;
 
 LidarBlock assembleSegmentBlock(
   const CtSegment & segment, const CtSegment & jacobianAt, const std::vector<SegmentPoint> & points,
-  const std::vector<PointCorrespondence> & correspondences, RobustKernel kernel, double kernelScale)
+  const std::vector<PointCorrespondence> & correspondences, RobustKernel kernel, double kernelScale,
+  double coreRadius)
 {
+  const double coreRadiusSquared = coreRadius > 0 ? coreRadius * coreRadius : 0.0;
 #if defined(MOLA_CT_LIO_HAS_TBB)
   return tbb::parallel_deterministic_reduce(
     tbb::blocked_range<std::size_t>(0, correspondences.size(), kGrainSize), LidarBlock(),
     [&](const tbb::blocked_range<std::size_t> & r, LidarBlock acc) {
       for (std::size_t i = r.begin(); i != r.end(); i++) {
-        accumulateOne(segment, jacobianAt, points, correspondences[i], kernel, kernelScale, acc);
+        accumulateOne(
+          segment, jacobianAt, points, correspondences[i], kernel, kernelScale, coreRadiusSquared,
+          acc);
       }
       return acc;
     },
@@ -117,7 +135,7 @@ LidarBlock assembleSegmentBlock(
 #else
   LidarBlock out;
   for (const auto & c : correspondences) {
-    accumulateOne(segment, jacobianAt, points, c, kernel, kernelScale, out);
+    accumulateOne(segment, jacobianAt, points, c, kernel, kernelScale, coreRadiusSquared, out);
   }
   return out;
 #endif

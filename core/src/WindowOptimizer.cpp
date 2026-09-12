@@ -189,6 +189,8 @@ void WindowOptimizer::assemble(
   result.imuPositionInfo = 0;
   result.priorPositionInfo = 0;
   result.lidarChi2 = 0;
+  result.lidarCoreChi2 = 0;
+  std::size_t coreInliers = 0;
 
   // The window's translational information, summed over knots. Translation
   // increments live in the world frame under this parameterization, so the
@@ -230,7 +232,7 @@ void WindowOptimizer::assemble(
 
     const LidarBlock blk = assembleSegmentBlock(
       current, jacobianAt, segments[k].points, correspondences_[k], params.kernel,
-      params.kernelScale);
+      params.kernelScale, params.lidarBalanceCoreRadius);
 
     lidarSystem_.addPosePairBlock(static_cast<int>(k), blk.H, blk.g);
 
@@ -240,6 +242,8 @@ void WindowOptimizer::assemble(
       lidarPositionBlock += blk.H.block<3, 3>(r, r);
     }
     result.lidarChi2 += blk.chi2;
+    result.lidarCoreChi2 += blk.coreChi2;
+    coreInliers += blk.coreInliers;
     result.errorSum += blk.errorSum;
     result.inliers += blk.inliers;
   }
@@ -261,10 +265,12 @@ void WindowOptimizer::assemble(
   // Each correspondence supplies three residuals, and the window's own pose
   // freedoms are what the fit consumes.
   result.lidarDof = std::max(1.0, 3.0 * static_cast<double>(result.inliers) - 6.0 * knotCount);
+  result.lidarCoreDof = std::max(1.0, 3.0 * static_cast<double>(coreInliers) - 6.0 * knotCount);
   result.lidarScale = 1.0;
 
-  if (params.lidarBalance != LidarBalance::None && result.lidarDof >= params.lidarBalanceMinDof) {
-    double kappa = result.lidarChi2 / result.lidarDof;
+  if (
+    params.lidarBalance != LidarBalance::None && result.lidarCoreDof >= params.lidarBalanceMinDof) {
+    double kappa = result.lidarCoreChi2 / result.lidarCoreDof;
     if (params.lidarBalance == LidarBalance::DownOnly) {
       kappa = std::max(1.0, kappa);
     }
@@ -496,8 +502,8 @@ WindowOptimizer::Result WindowOptimizer::optimize(
   // The baseline the clamp is measured against records what the window asked
   // for, not what it was allowed, so that a long stretch of genuinely harder
   // scenes still moves the baseline and the clamp follows it.
-  if (params.lidarBalanceOutlierRatio > 0 && result.lidarDof > 0) {
-    const double kappa = result.lidarChi2 / result.lidarDof;
+  if (params.lidarBalanceOutlierRatio > 0 && result.lidarCoreDof > 0) {
+    const double kappa = result.lidarCoreChi2 / result.lidarCoreDof;
     const auto capacity = static_cast<std::size_t>(std::max(1, params.lidarBalanceBaselineWindows));
     if (kappa > 0 && std::isfinite(kappa)) {
       if (recentKappa_.size() < capacity) {

@@ -161,6 +161,61 @@ TEST(CtNormalEquations, GaussNewtonRecoversTheKnots)
   }
 }
 
+/** The core sum is what the balance reads as the sensor's noise scale, so it
+ * has to be a strict subset selected by residual size, and it has to fall back
+ * to the whole population when no radius is asked for. Both halves matter: the
+ * first is the property that makes the estimate independent of the acceptance
+ * radius, the second is what keeps the default behaviour untouched.
+ */
+TEST(CtNormalEquations, CoreChiSquareSelectsByResidualAndDefaultsToEverything)
+{
+  std::mt19937 rng(17);
+  const Scene s = makeScene(rng, 500, true);
+
+  // The scene's correspondences are exact, so the residuals only exist away
+  // from the truth. Displace the segment to get a spread of them.
+  const SE3 offset(so3Exp(Vec3(0.004, -0.002, 0.006)), Vec3(0.05, -0.03, 0.02));
+  const CtSegment seg(s.Tb * offset, s.Te * offset);
+
+  const LidarBlock all =
+    assembleSegmentBlock(seg, seg, s.points, s.correspondences, RobustKernel::Cauchy, 0.5);
+  ASSERT_GT(all.chi2, 0.0) << "the displaced segment must produce residuals";
+
+  // No radius, and a radius past every residual, both mean the whole set.
+  EXPECT_EQ(all.coreInliers, all.inliers);
+  EXPECT_NEAR(all.coreChi2, all.chi2, 1e-12);
+
+  const LidarBlock wide =
+    assembleSegmentBlock(seg, seg, s.points, s.correspondences, RobustKernel::Cauchy, 0.5, 1e6);
+  EXPECT_EQ(wide.coreInliers, wide.inliers);
+  EXPECT_NEAR(wide.coreChi2, wide.chi2, 1e-12);
+
+  const LidarBlock tight =
+    assembleSegmentBlock(seg, seg, s.points, s.correspondences, RobustKernel::Cauchy, 0.5, 1e-9);
+  EXPECT_EQ(tight.coreInliers, 0u);
+  EXPECT_NEAR(tight.coreChi2, 0.0, 1e-12);
+
+  // Narrowing the radius may only remove correspondences, never add them, and
+  // the system it assembles must not move with it: the radius selects what the
+  // balance reads, not what the solver fits.
+  double previous = static_cast<double>(all.inliers) + 1.0;
+  bool sawPartialSelection = false;
+  for (const double radius : {10.0, 5.0, 2.0, 1.0, 0.5}) {
+    const LidarBlock b = assembleSegmentBlock(
+      seg, seg, s.points, s.correspondences, RobustKernel::Cauchy, 0.5, radius);
+    EXPECT_LE(static_cast<double>(b.coreInliers), previous) << "radius=" << radius;
+    previous = static_cast<double>(b.coreInliers);
+    sawPartialSelection = sawPartialSelection || (b.coreInliers > 0 && b.coreInliers < b.inliers);
+
+    EXPECT_LE(b.coreChi2, b.chi2 + 1e-12) << "radius=" << radius;
+    EXPECT_EQ(b.inliers, all.inliers) << "radius=" << radius;
+    EXPECT_LT((b.H - all.H).cwiseAbs().maxCoeff(), 1e-12) << "radius=" << radius;
+    EXPECT_LT((b.g - all.g).cwiseAbs().maxCoeff(), 1e-12) << "radius=" << radius;
+    EXPECT_NEAR(b.chi2, all.chi2, 1e-12) << "radius=" << radius;
+  }
+  EXPECT_TRUE(sawPartialSelection) << "no radius actually split the population";
+}
+
 TEST(CtNormalEquations, HessianIsSymmetricAndPositiveSemidefinite)
 {
   std::mt19937 rng(9);

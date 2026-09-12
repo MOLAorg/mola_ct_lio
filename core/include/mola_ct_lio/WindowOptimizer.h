@@ -279,6 +279,15 @@ public:
     /// conditioned than that mission's own median.
     double lidarBalanceConditioningReference = 0.0;
 
+    /// Residual norm, in meters, inside which a correspondence counts toward
+    /// the reduced chi-square that drives the balance. Zero uses every
+    /// accepted correspondence, which ties the noise estimate to the
+    /// acceptance radius: widening the radius admits larger residuals, the
+    /// reduced chi-square rises, and the balance withdraws weight from the
+    /// LiDAR term even though the sensor has not changed. Holding this fixed
+    /// while the gate moves keeps the two decisions independent. [m]
+    double lidarBalanceCoreRadius = 0.0;
+
     /// Uncertainty of an external odometry's relative motion over one
     /// segment. Zero on either disables that half, which is the default: the
     /// factor is measured and useful, but a second pose source fused while
@@ -337,6 +346,10 @@ public:
     /// information matrices were not describing the sensor's noise.
     double lidarChi2 = 0;
     double lidarDof = 0;
+    /// Reduced chi-square actually used by the balance, and its degrees of
+    /// freedom. Equal to the pair above unless a core radius is in force.
+    double lidarCoreChi2 = 0;
+    double lidarCoreDof = 0;
     double lidarScale = 1.0;
 
     /// What this window alone asked for, before smoothing. A large gap
