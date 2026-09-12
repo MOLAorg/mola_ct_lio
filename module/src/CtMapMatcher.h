@@ -100,6 +100,19 @@ public:
     /// Voxel size used to decimate points on their way into the map. [m]
     double mapVoxelSize = 0.4;
 
+    /// A candidate point closer than this to a point already in the map is
+    /// not inserted. Zero disables the test, which inserts every decimated
+    /// point of every segment.
+    ///
+    /// Insertion is driven by the segment rate, so how many copies of one
+    /// surface reach the map is set by how long the platform spent looking at
+    /// it. The copies do not describe the surface any better: they differ by
+    /// the pose error of the window each arrived in, so the neighborhood the
+    /// GICP covariances are fitted to ends up describing that error. Rejecting
+    /// a candidate that lands on a point already held keeps the map's density
+    /// a property of the geometry while still admitting whatever is new. [m]
+    double mapMinPointSeparation = 0.0;
+
     /// How an occupied voxel's representative point is chosen, for both the
     /// source cloud and the map.
     DecimateMethod decimateMethod = DecimateMethod::FirstPoint;
@@ -220,6 +233,13 @@ public:
 private:
   std::shared_ptr<IncrementalPointCloud> map_;
   mutable ViewRayStats viewRayStats_;
+  std::size_t lastInsertedPoints_ = 0;
+
+public:
+  /// Points actually written by the most recent insert() call.
+  [[nodiscard]] std::size_t lastInsertedPoints() const { return lastInsertedPoints_; }
+
+private:
   uint32_t insertionsSincePrune_ = 0;
 
   void applyCovarianceOptions(IncrementalPointCloud & m) const;

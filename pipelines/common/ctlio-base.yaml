@@ -82,6 +82,11 @@ lidar_balance_core_radius: ${CTLIO_BALANCE_CORE|0.0}
 match_gate_anneal_start: ${CTLIO_ANNEAL_START|1.0}
 match_gate_anneal_rate: ${CTLIO_ANNEAL_RATE|0.5}
 starvation_ratio: ${CTLIO_STARVATION|0.0}
+# Travel between two map insertions. Without it the number of copies of one
+# surface entering the map is set by speed alone, so a slow stretch writes the
+# same geometry many times over. Zero on both inserts every segment.
+map_min_translation_between_inserts: ${CTLIO_MAP_MIN_T|0.0}
+map_min_rotation_between_inserts: ${CTLIO_MAP_MIN_R|0.0}
 # A segment whose points carry their own capture times is ready to close a
 # whole sweep before the inertial samples spanning it arrive. Waiting costs
 # nothing; building the factor from partial coverage gives a wrong
@@ -156,6 +161,10 @@ max_plane_deviation_for_cov: ${CTLIO_PLANE_DEV_COV|0.0}
 
 # --- matcher ---
 match_threshold: ${CTLIO_MATCH_TH|0.8}
+# A candidate point landing this close to one the map already holds is not
+# inserted, so map density follows the geometry rather than the dwell time.
+# Zero inserts every decimated point. See CtMapMatcher.h.
+map_min_point_separation: ${CTLIO_MAP_MIN_SEP|0.0}
 # An adaptive gate: tight in steady state, opened while the correspondence
 # count is collapsing against its own recent median, relaxed once it recovers.
 # Zero leaves the gate fixed. See CtOdometryEngine.h for why the count and not

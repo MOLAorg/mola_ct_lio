@@ -183,6 +183,7 @@ void CtMapMatcher::initialize(const mrpt::containers::yaml & cfg)
   readDouble("map_radius", params.mapRadius);
   readUint("map_prune_period", params.prunePeriod);
   readFloat("match_threshold", params.matchThreshold);
+  readDouble("map_min_point_separation", params.mapMinPointSeparation);
   readFloat("match_threshold_far", params.matchThresholdFar);
   readFloat("match_knee_range", params.matchKneeRange);
   readFloat("match_transition_width", params.matchTransitionWidth);
@@ -414,9 +415,28 @@ void CtMapMatcher::insert(
   const std::vector<ct::Vec3> world = deskew(segment, decimated);
 
   map_->reserve(map_->size() + world.size());
+
+  const bool suppressDuplicates = params.mapMinPointSeparation > 0 && !empty();
+  const float minSeparationSquared =
+    static_cast<float>(params.mapMinPointSeparation * params.mapMinPointSeparation);
+
+  lastInsertedPoints_ = 0;
   for (const auto & p : world) {
+    if (suppressDuplicates) {
+      const mrpt::math::TPoint3Df q(
+        static_cast<float>(p.x()), static_cast<float>(p.y()), static_cast<float>(p.z()));
+      mrpt::math::TPoint3Df nearest;
+      float distanceSquared = 0;
+      uint64_t index = 0;
+      if (
+        map_->nn_single_search(q, nearest, distanceSquared, index) &&
+        distanceSquared < minSeparationSquared) {
+        continue;
+      }
+    }
     map_->insertPoint(
       static_cast<float>(p.x()), static_cast<float>(p.y()), static_cast<float>(p.z()));
+    lastInsertedPoints_++;
   }
 
   // Eviction is driven explicitly from the segment's own end pose rather than

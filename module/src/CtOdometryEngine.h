@@ -24,6 +24,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "CtMapMatcher.h"
@@ -78,6 +79,21 @@ public:
     /// makes both of the missions it was built for worse. Kept, disabled, so
     /// the measurement is not lost and the idea is not tried again blind.
     double starvationRatio = 0.0;
+
+    /// Distance and rotation the platform must cover since the last map
+    /// insertion before another one is made. Zero on either disables that
+    /// test, and zero on both inserts every segment, which is the behavior
+    /// this replaced.
+    ///
+    /// Insertion is otherwise driven by the segment rate, so the number of
+    /// copies of one surface entering the map is set by speed alone. Where
+    /// the platform slows or stops, the same geometry is written many times
+    /// over, each copy displaced by that window's own pose error; the local
+    /// neighborhood the covariances are fitted to then describes that error
+    /// rather than the surface. Spacing insertions by travel makes the map's
+    /// density a property of the ground covered instead. [m] and [deg]
+    double mapMinTranslationBetweenInserts = 0.0;
+    double mapMinRotationBetweenInserts = 0.0;
 
     /// Odometry samples older than the window are dropped; this is how much
     /// margin is kept so a segment can still interpolate across its own
@@ -356,6 +372,8 @@ private:
   /// what a starved one is judged against.
   double pointCountAverage_ = 0;
   std::size_t starvedSegments_ = 0;
+  std::size_t throttledSegments_ = 0;
+  std::optional<ct::SE3> lastInsertPose_;
   std::size_t truncatedImuSegments_ = 0;
 
   struct OdometrySample

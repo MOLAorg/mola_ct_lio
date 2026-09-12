@@ -16,6 +16,7 @@
 #include "CtOdometryEngine.h"
 
 #include <mola_imu_preintegration/ImuPreintegrator.h>
+#include <mrpt/core/bits_math.h>
 #include <mrpt/core/format.h>
 
 #include <algorithm>
@@ -81,6 +82,8 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("lidar_balance_core_radius", params.optimizer.lidarBalanceCoreRadius);
   readDouble("match_gate_anneal_start", params.optimizer.matchGateAnnealStart);
   readDouble("match_gate_anneal_rate", params.optimizer.matchGateAnnealRate);
+  readDouble("map_min_translation_between_inserts", params.mapMinTranslationBetweenInserts);
+  readDouble("map_min_rotation_between_inserts", params.mapMinRotationBetweenInserts);
 
   readInt("max_iterations", params.optimizer.maxIterations);
   readInt("rematch_every", params.optimizer.rematchEvery);
@@ -665,12 +668,31 @@ void CtOdometryEngine::slideWindow()
   const bool starved = params.starvationRatio > 0 && pointCountAverage_ > 0 &&
                        segmentPoints < params.starvationRatio * pointCountAverage_;
 
+  // Spacing insertions by travel keeps the map's density a property of the
+  // ground covered rather than of how long the platform lingered over it.
+  bool throttled = false;
+  if (
+    lastInsertPose_.has_value() &&
+    (params.mapMinTranslationBetweenInserts > 0 || params.mapMinRotationBetweenInserts > 0)) {
+    const ct::SE3 delta = lastInsertPose_->inverse() * knots_[0].state.T;
+    const double moved = delta.t.norm();
+    const double turned = ct::so3Log(delta.R).norm();
+    const bool farEnough =
+      params.mapMinTranslationBetweenInserts > 0 && moved >= params.mapMinTranslationBetweenInserts;
+    const bool turnedEnough = params.mapMinRotationBetweenInserts > 0 &&
+                              turned >= mrpt::DEG2RAD(params.mapMinRotationBetweenInserts);
+    throttled = !farEnough && !turnedEnough;
+  }
+
   if (starved) {
     starvedSegments_++;
+  } else if (throttled) {
+    throttledSegments_++;
   } else {
     const ct::CtSegment oldest(knots_[0].state.T, knots_[1].state.T);
     mrpt::system::CTimeLoggerEntry tle(profiler, "mapInsert");
     matcher_.insert(oldest, segments_[0].points);
+    lastInsertPose_ = knots_[0].state.T;
   }
 
   // The average tracks every segment, starved ones included: a run that
