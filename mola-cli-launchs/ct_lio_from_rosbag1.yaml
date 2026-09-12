@@ -1,0 +1,112 @@
+# -----------------------------------------------------------------------------
+#                        SLAM system definition for MOLA
+#
+# Continuous-time LiDAR-inertial odometry against a ROS 1 bag, with the 3D GUI.
+# This is the online counterpart of `mola-ct-lio-cli`: the same module and the
+# same pipeline YAML, driven by a replayed dataset instead of a batch loop.
+#
+# Unlike the LiDAR-odometry launchers there is no separate state-estimation
+# module here. This estimator carries its own sliding-window trajectory, so a
+# second navigation filter would only be a second opinion about the same
+# states.
+#
+# The sensor labels below are fixed: `lidar`, `imu` and `odometry` are what the
+# pipeline's *_sensor_label entries match, and `mola-ct-lio-cli` hardcodes the
+# same three, so the online and offline arms see identically labelled streams.
+# -----------------------------------------------------------------------------
+
+modules:
+  # =====================
+  # MolaViz
+  # =====================
+  - name: viz
+    type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
+    enabled: ${MOLA_WITH_GUI|true}
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
+    params:
+      imgui_app_name: ct_lio_from_rosbag1
+
+  # =====================
+  # CT LiDAR-inertial odometry
+  # =====================
+  - name: ct_lio
+    type: mola::CtLidarInertialOdometry
+    verbosity_level: "${MOLA_VERBOSITY_CT_LIO|INFO}"
+    raw_data_source: "dataset_input"
+    # This pulls in the whole pipeline file, which in turn `$import`s
+    # pipelines/common/ctlio-base.yaml. Every CTLIO_* variable it exposes still
+    # works from the environment here, exactly as in the offline CLI.
+    params: "${CTLIO_PIPELINE_YAML|../pipelines/ctlio-grandtour.yaml}"
+
+  # =========================
+  # Offline dataset source
+  # =========================
+  - type: mola::Rosbag1Dataset
+    name: dataset_input
+    verbosity_level: "${MOLA_VERBOSITY_ROSBAG1|INFO}"
+
+    # Caps the rate topics are published at; a faster stream still keeps its
+    # own timestamps, it just arrives in bursts.
+    execution_rate: 50  # Hz
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|false}
+
+    # Optional visualization of the raw sensor streams in the GUI.
+    gui_preview_sensors:
+      - raw_sensor_label: "lidar"
+        decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
+        win_pos: 5 5 400 400
+      - raw_sensor_label: "camera"
+        decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
+        win_pos: 5 370 600 200
+
+    params:
+      # Up to five bags are replayed as one merged stream: these datasets split
+      # the LiDAR, /tf, the IMU, the odometry and a camera into separate files.
+      # Empty slots are ignored.
+      rosbag_filename:
+        - ${MOLA_INPUT_ROSBAG1}
+        - ${MOLA_INPUT_ROSBAG1_2|}
+        - ${MOLA_INPUT_ROSBAG1_3|}
+        - ${MOLA_INPUT_ROSBAG1_4|}
+        - ${MOLA_INPUT_ROSBAG1_5|}
+      time_warp_scale: ${MOLA_TIME_WARP|1.0}
+      start_paused: ${MOLA_DATASET_START_PAUSED|false}
+
+      base_link_frame_id: "${MOLA_TF_BASE_LINK|base_link}"
+
+      # Sensor poses come from the bag's /tf_static unless a fixed pose is
+      # forced below, which is what a bag without /tf needs.
+      sensors:
+        - topic: ${MOLA_LIDAR_TOPIC|'/lidar'}
+          type: CObservationPointCloud
+          sensorLabel: "lidar"
+          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
+
+        - topic: ${MOLA_IMU_TOPIC|'/imu'}
+          type: CObservationIMU
+          sensorLabel: "imu"
+          is_optional: true
+          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+
+        # External odometry, e.g. a legged platform's own kinematic-inertial
+        # estimate. Read as CObservationRobotPose rather than the planar
+        # CObservationOdometry, matching the offline CLI: the planar type would
+        # drop z, roll, pitch and the covariance. Off unless a topic is given,
+        # and note that the pipeline ALSO has to be told to believe it, via
+        # CTLIO_ODO_SIGMA_LIN / CTLIO_ODO_SIGMA_ANG.
+        - topic: ${MOLA_ODOMETRY_TOPIC|''}
+          type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationRobotPose}
+          sensorLabel: "odometry"
+          is_optional: true
+
+        # GUI preview only: nothing in this estimator consumes images.
+        - topic: ${MOLA_CAMERA_TOPIC|''}
+          type: CObservationImage
+          sensorLabel: "camera"
+          is_optional: true
+          fixed_sensor_pose: "${CAMERA_POSE_X|0} ${CAMERA_POSE_Y|0} ${CAMERA_POSE_Z|0} ${CAMERA_POSE_YAW|0} ${CAMERA_POSE_PITCH|0} ${CAMERA_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_CAMERA_POSE|false}

@@ -13,7 +13,8 @@ Design document: `~/plans/lio/detail/lio-ct-lio-design.md`.
 | `module/` | the MOLA front end: map, matchers, dataset input |
 | `apps/` | offline CLI |
 | `pipelines/` | per-dataset configuration: `common/ctlio-base.yaml` holds every knob, each file next to it `$import`s that base and `$define`s only what its dataset changes |
-| `mola-cli-launchs/` | MOLA launcher configs |
+| `mola-cli-launchs/` | MOLA launcher configs: `ct_lio_from_rosbag1.yaml` is the online, GUI counterpart of the offline CLI |
+| `scripts/` | dataset wrappers (`mola-ct-lio-{cli,gui}-<dataset>`) over the profiles in `scripts/lib/`, plus the scoring and bench tools |
 
 ## Build and test
 
@@ -132,6 +133,27 @@ base file and to this table together.
 | `baselink2lidar_pose_str` | `CTLIO_BASELINK2LIDAR` | Oxford Spires needs `0 0 0.124 180 0 0`. Getting this wrong costs almost nothing in APE and everything in RPE, so check RPE when changing it |
 | `baselink2imu_pose_str` | `CTLIO_BASELINK2IMU` | |
 | `fallback_scan_period` | `CTLIO_FALLBACK_PERIOD` | 0.1 s; used only when the scan carries no usable per-point time field |
+
+## Running on GrandTour
+
+Both arms are one command, and both read the same profile, so they cannot
+disagree about a bag name, a topic or a frame:
+
+```bash
+mola-ct-lio-cli-grandtour /data/grand-tour/2024-10-01-11-29-55/   # batch, writes a TUM file
+mola-ct-lio-gui-grandtour /data/grand-tour/2024-10-01-11-29-55/   # replay with the 3D GUI
+```
+
+Either accepts a mission directory or any one of its bags, and both honor
+every `CTLIO_*` knob from the environment, so a sweep is a loop around one of
+them. The dataset choices live in `scripts/lib/profiles/grandtour.sh`
+(`MOLA_GRANDTOUR_LIDAR`, `MOLA_GRANDTOUR_IMU`, the camera preview); run either
+with no arguments for the full list. Adding a dataset means one more profile
+file and one more name in the CMake wrapper list.
+
+The TF bag is required rather than optional, which is where this differs from
+the LiDAR-only wrappers: without `/tf` the IMU is placed at the vehicle origin,
+and the wrong lever arm produces a plausible trajectory rather than a failure.
 
 ## Running on Oxford Spires, and what was verified against ground truth
 

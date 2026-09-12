@@ -73,6 +73,17 @@ mola-ct-lio-cli -c pipelines/ctlio-oxford-spires.yaml \
   --output-tum-path out.tum
 ```
 
+For a dataset with a wrapper there is nothing to spell out. Each one takes a
+mission directory and drives either the offline batch or the same pipeline
+replayed with the 3D GUI, from one shared description of the dataset:
+
+```bash
+mola-ct-lio-cli-grandtour /data/grand-tour/2024-10-01-11-29-55/
+mola-ct-lio-gui-grandtour /data/grand-tour/2024-10-01-11-29-55/
+```
+
+Run either with no arguments to see what it can be told.
+
 `agents.md` records what each parameter is worth, and which ideas were measured
 and rejected.
 

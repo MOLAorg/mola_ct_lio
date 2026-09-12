@@ -194,6 +194,22 @@ if(ament_cmake_FOUND)
     )
     install(DIRECTORY module/include/ DESTINATION include)
     install(DIRECTORY pipelines mola-cli-launchs DESTINATION share/${PROJECT_NAME})
+
+    # The per-dataset knowledge behind the wrappers below. They locate it
+    # relative to themselves, so it has to land under this exact name.
+    install(DIRECTORY scripts/lib/ DESTINATION share/${PROJECT_NAME}/scripts-lib)
+
+    # Every dataset gets a "gui" wrapper (online replay through mola-cli) and a
+    # "cli" one (offline batch through mola-ct-lio-cli); both are thin front
+    # ends over the same profile in scripts-lib/profiles/.
+    set(MOLA_CT_LIO_DATASET_WRAPPERS grandtour)
+    set(MOLA_CT_LIO_WRAPPER_PATHS "")
+    foreach(ds ${MOLA_CT_LIO_DATASET_WRAPPERS})
+      list(APPEND MOLA_CT_LIO_WRAPPER_PATHS
+           scripts/mola-ct-lio-gui-${ds}
+           scripts/mola-ct-lio-cli-${ds})
+    endforeach()
+    install(PROGRAMS ${MOLA_CT_LIO_WRAPPER_PATHS} DESTINATION bin)
   endif()
 
   if(MOLA_CT_LIO_HAS_MODULE)

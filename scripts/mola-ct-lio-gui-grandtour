@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Runs continuous-time LiDAR-inertial odometry on the 'grandtour' dataset
+# through mola-cli (online replay, 3D GUI).
+#
+# Everything this script knows about the dataset lives in
+# lib/profiles/grandtour.sh, shared with the matching
+# mola-ct-lio-cli-grandtour wrapper. Any MOLA_* or CTLIO_* variable you
+# export before invoking this takes precedence over the profile's default.
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+CTLIO_SCRIPTS_LIB="$SCRIPT_DIR/lib/dataset-profile.sh"
+if [ ! -f "$CTLIO_SCRIPTS_LIB" ]; then
+  CTLIO_SCRIPTS_LIB="$SCRIPT_DIR/../share/mola_ct_lio/scripts-lib/dataset-profile.sh"
+fi
+# shellcheck source=lib/dataset-profile.sh
+source "$CTLIO_SCRIPTS_LIB"
+
+CTLIO_MODE=gui
+mola_ctlio_load_profile grandtour "$@" || exit $?
+mola_ctlio_exec_gui
