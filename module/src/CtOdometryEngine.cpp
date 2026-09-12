@@ -69,6 +69,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readInt("gate_retries_per_window", params.gateRetriesPerWindow);
   readDouble("gate_speed_scale", params.gateSpeedScale);
   readDouble("gate_min_threshold", params.gateMinThreshold);
+  readDouble("gate_speed_decay", params.gateSpeedDecay);
   readDouble("lidar_balance_smoothing", params.optimizer.lidarBalanceSmoothing);
   readDouble("lidar_balance_outlier_ratio", params.optimizer.lidarBalanceOutlierRatio);
   readInt("lidar_balance_baseline_windows", params.optimizer.lidarBalanceBaselineWindows);
@@ -544,8 +545,12 @@ void CtOdometryEngine::adaptGate(std::size_t inliers)
   // over, opening it on a detected collapse: it is the reason the gate is
   // where it is, rather than a response to something having gone wrong.
   if (params.gateSpeedScale > 0 && !knots_.empty()) {
-    const double speed = knots_[0].state.v.norm();
-    const double perSegment = speed * params.segmentInterval;
+    const double instant = knots_[0].state.v.norm();
+    // Rises at once, falls only by the decay: see the parameter's docs for
+    // why a gate must not narrow the moment the platform slows.
+    const double decay = std::clamp(params.gateSpeedDecay, 0.0, 1.0);
+    gateSpeed_ = std::max(instant, gateSpeed_ * decay);
+    const double perSegment = gateSpeed_ * params.segmentInterval;
     const double wanted = params.gateSpeedScale * perSegment;
     const double lo = std::max(0.0, params.gateMinThreshold);
     const double hi = std::max(lo, params.gateMaxThreshold);

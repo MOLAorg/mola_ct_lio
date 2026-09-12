@@ -170,6 +170,19 @@ public:
     /// internal measure except speed.
     double gateSpeedScale = 0.0;
     double gateMinThreshold = 0.1;
+
+    /// How fast the speed the gate is sized from may fall, per window.
+    ///
+    /// It rises immediately. It must not fall immediately: the error the gate
+    /// exists to absorb does not vanish the moment the platform slows, and a
+    /// platform that slows because the registration is struggling is exactly
+    /// where a narrowing gate does the most harm. Measured on the one mission
+    /// with a known failure, the instantaneous rule cuts the gate to a fifth
+    /// of its own median at the failure, because the platform decelerates
+    /// into it.
+    ///
+    /// One disables the decay, holding the running maximum for ever.
+    double gateSpeedDecay = 0.995;
     double gateMaxThreshold = 1.0;
     double gateOpenStep = 1.5;
     double gateCloseStep = 0.9;
@@ -297,6 +310,9 @@ private:
 
   /// The gate as it currently stands, at or above `matcher.matchThreshold`.
   double currentGate_ = 0;
+
+  /// Speed the gate is sized from: the recent motion, not this instant's.
+  double gateSpeed_ = 0;
 
   /// True if this window's correspondence count has collapsed against the
   /// recent median. False until enough windows have been seen to have one.

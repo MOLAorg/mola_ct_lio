@@ -160,6 +160,9 @@ gate_retries_per_window: ${CTLIO_GATE_RETRIES|0}
 # Zero keeps the fixed gate. See CtOdometryEngine.h.
 gate_speed_scale: ${CTLIO_GATE_SPEED|0.0}
 gate_min_threshold: ${CTLIO_GATE_MIN|0.1}
+# The speed the gate is sized from rises at once and falls only by this factor
+# per window, so the gate does not narrow the moment the platform slows.
+gate_speed_decay: ${CTLIO_GATE_DECAY|0.995}
 match_threshold_far: ${CTLIO_MATCH_TH_FAR|0.0}
 match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
 match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}
