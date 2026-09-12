@@ -28,18 +28,22 @@ rather than something baked into the estimator.
 
 ## Results
 
-Accuracy is measured against two public corpora, at the defaults the
-pipelines below ship with, and with the reference composed onto the frame each
-corpus anchors its ground truth to. `agents.md` records what each parameter is
-worth and where the shipped value is not the best one measured.
+Accuracy against two public corpora, with the reference composed onto the
+frame each corpus anchors its ground truth to. One configuration per dataset,
+the best measured; `agents.md` records what every parameter is worth and which
+ideas were measured and rejected. The two corpora want opposite knot spacings
+and they differ in kind, not in taste: Oxford's clouds carry real per-point
+times, so a segment shorter than a sweep resolves motion the scan actually
+contains, while the other corpus publishes clouds already compensated onto one
+instant, where the same setting leaves the interpolation with nothing to fit.
 
 **Oxford Spires**, absolute trajectory error [m]:
 
-| sequence | this | best previously recorded here |
-|---|---|---|
-| keble-college-02 | **0.0433** | 0.0463 |
-| observatory-quarter-01 | 0.0758 | 0.0641 |
-| observatory-quarter-02 | 0.0615 | 0.0543 |
+| sequence | ATE |
+|---|---|
+| keble-college-02 | 0.0436 |
+| observatory-quarter-02 | 0.0571 |
+| observatory-quarter-01 | 0.0703 |
 
 **GrandTour**, against the total-station prism reference [m]. The prism is
 0.64 m from the body frame and the truth is position only, so the estimate has
@@ -48,11 +52,11 @@ does it.
 
 | mission | release folder | ATE |
 |---|---|---|
-| con-3 | 2024-12-09-11-28-28 | 0.0162 |
-| heap-1 | 2024-11-14-13-45-37 | 0.0199 |
-| con-1 | 2024-12-09-09-34-43 | 0.0232 |
+| con-3 | 2024-12-09-11-28-28 | 0.0164 |
+| heap-1 | 2024-11-14-13-45-37 | 0.0194 |
+| con-1 | 2024-12-09-09-34-43 | 0.0229 |
 | con-2 | 2024-12-09-09-41-46 | 0.0246 |
-| eth-1 | 2024-10-01-11-29-55 | 0.0468 |
+| eth-1 | 2024-10-01-11-29-55 | 0.0383 |
 
 Two missions at one further site are left out of every figure above and out of
 every decision behind them. Their error moves by an order of magnitude under
