@@ -148,7 +148,9 @@ match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
 match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}
 
 # --- output ---
-# Per-stage timings, printed at the end of the run. Off by default: the
-# breakdown is what says whether the cost is matching, assembly or solve.
-profiler_enabled: ${CTLIO_PROFILE|false}
+# Per-stage timings, printed as the standard MRPT profiler table at the end of
+# the run. On by default, as in the other MOLA front ends: the breakdown is
+# what says whether the cost is matching, assembly or solve, and it is the
+# first thing wanted whenever a run is slower than expected.
+profiler_enabled: ${CTLIO_PROFILE|true}
 map_publish_period: ${CTLIO_MAP_PUBLISH_PERIOD|0.5}

@@ -872,8 +872,10 @@ near rest.
 
 ## Where the time goes, measured
 
-Set `CTLIO_PROFILE=true` for a per-stage table at the end of a run (MRPT
-`CTimeLogger`). On Oxford observatory-quarter-01, 255 scans:
+Every run ends with a per-stage table (MRPT `CTimeLogger`), as the other MOLA
+front ends print. `CTLIO_PROFILE=false` turns it off, which is worth doing only
+when timing the estimator against itself. On Oxford observatory-quarter-01,
+255 scans:
 
 | stage | before | after | note |
 |---|---|---|---|

@@ -125,6 +125,13 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
 
   engine_->initialize(mrpt::containers::yaml(cfg));
 
+  // `mola-cli --profiler-whole` enables every module's inherited profiler, so
+  // honor it here too: the timings that matter for this module live in the
+  // engine's own logger, not in the module's.
+  if (profiler_.isEnabled()) {
+    engine_->profiler.enable(true);
+  }
+
   if (!engine_->params.optimizer.useImu) {
     // No inertial data means no gravity-aligned world frame to establish, so
     // the trajectory simply starts at the origin.
@@ -552,7 +559,13 @@ void CtLidarInertialOdometry::finish()
   engine_->finish();
 
   if (engine_->profiler.isEnabled()) {
-    MRPT_LOG_INFO_STREAM("Stage timings:\n" << engine_->profiler.getStatsAsText());
+    // The standard MRPT profiler table, as the other MOLA front ends print it.
+    // Done here rather than left to the logger's destructor so that it lands at
+    // the end of the run, while the rest of the run's output is still around,
+    // instead of at an arbitrary point during teardown. Clearing it afterwards
+    // is what keeps that destructor from printing the same table again.
+    engine_->profiler.dumpAllStats();
+    engine_->profiler.clear(true);
   }
 }
 

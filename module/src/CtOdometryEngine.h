@@ -207,9 +207,11 @@ public:
 
   [[nodiscard]] const CtMapMatcher & matcher() const { return matcher_; }
 
-  /** Per-stage timings. Enabled by `profiler_enabled` in the YAML; the
-   * breakdown is what says whether the cost is in the matching, the assembly
-   * or the solve, which is not obvious from the outside.
+  /** Per-stage timings. Enabled by `profiler_enabled` in the YAML, which the
+   * shipped pipelines turn on; the breakdown is what says whether the cost is
+   * in the matching, the assembly or the solve, which is not obvious from the
+   * outside. Off when constructed, so a standalone user of this class pays
+   * nothing until it asks.
    */
   mrpt::system::CTimeLogger profiler{false, "mola_ct_lio"};
   [[nodiscard]] std::size_t knotsEmitted() const { return knotsEmitted_; }

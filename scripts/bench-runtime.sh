@@ -32,7 +32,7 @@ echo
 
 run () {   # tag  async
   echo "--- map_async_rebuild=$2 ---"
-  ( export MOLA_TF_BASE_LINK=base CTLIO_PROFILE=true CTLIO_MAP_ASYNC=$2
+  ( export MOLA_TF_BASE_LINK=base CTLIO_MAP_ASYNC=$2
     /usr/bin/time -f "  wall %e s   peak-rss %M kB" \
     taskset -c "$CORES" "$CLI" -c "$YAML" \
       --input-rosbag1 "$DIR/${M}_hesai_undist.bag,$DIR/${M}_tf_minimal.bag,$DIR/${M}_adis.bag" \
