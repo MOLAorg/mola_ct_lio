@@ -67,6 +67,8 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble("gate_close_step", params.gateCloseStep);
   readInt("gate_baseline_windows", params.gateBaselineWindows);
   readInt("gate_retries_per_window", params.gateRetriesPerWindow);
+  readDouble("gate_speed_scale", params.gateSpeedScale);
+  readDouble("gate_min_threshold", params.gateMinThreshold);
   readDouble("lidar_balance_smoothing", params.optimizer.lidarBalanceSmoothing);
   readDouble("lidar_balance_outlier_ratio", params.optimizer.lidarBalanceOutlierRatio);
   readInt("lidar_balance_baseline_windows", params.optimizer.lidarBalanceBaselineWindows);
@@ -538,6 +540,18 @@ void CtOdometryEngine::openGate()
 
 void CtOdometryEngine::adaptGate(std::size_t inliers)
 {
+  // Sizing the gate to the motion is independent of, and takes precedence
+  // over, opening it on a detected collapse: it is the reason the gate is
+  // where it is, rather than a response to something having gone wrong.
+  if (params.gateSpeedScale > 0 && !knots_.empty()) {
+    const double speed = knots_[0].state.v.norm();
+    const double perSegment = speed * params.segmentInterval;
+    const double wanted = params.gateSpeedScale * perSegment;
+    const double lo = std::max(0.0, params.gateMinThreshold);
+    const double hi = std::max(lo, params.gateMaxThreshold);
+    matcher_.params.matchThreshold = static_cast<float>(std::clamp(wanted, lo, hi));
+  }
+
   if (params.gateOpenInlierRatio <= 0) {
     return;
   }

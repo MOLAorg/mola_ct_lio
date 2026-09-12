@@ -155,6 +155,11 @@ gate_baseline_windows: ${CTLIO_GATE_BASELINE|100}
 # Solve a collapsed window again with the gate already opened, rather than
 # letting the widening help only its successor. See CtOdometryEngine.h.
 gate_retries_per_window: ${CTLIO_GATE_RETRIES|0}
+# Size the gate to the motion instead of fixing it: the prediction error a
+# gate has to accommodate grows with how far the platform moved in a segment.
+# Zero keeps the fixed gate. See CtOdometryEngine.h.
+gate_speed_scale: ${CTLIO_GATE_SPEED|0.0}
+gate_min_threshold: ${CTLIO_GATE_MIN|0.1}
 match_threshold_far: ${CTLIO_MATCH_TH_FAR|0.0}
 match_knee_range: ${CTLIO_MATCH_KNEE|15.0}
 match_transition_width: ${CTLIO_MATCH_WIDTH|5.0}

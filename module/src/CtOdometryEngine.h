@@ -152,6 +152,24 @@ public:
     /// next window then registers against. Retrying costs a second solve on
     /// the few windows that ask for one.
     int gateRetriesPerWindow = 0;
+
+    /// Size the correspondence gate to the motion, as a multiple of how far
+    /// the platform travels in one segment. Zero disables, leaving the gate
+    /// at `matcher.matchThreshold`.
+    ///
+    /// A gate has to accommodate the error in the pose that predicts where a
+    /// point will land, and that error grows with how far the platform moved
+    /// since the last one. A constant therefore fits one speed: measured
+    /// across this corpus, the gate a mission wants tracks its median speed,
+    /// with the best fixed value near ten times the distance covered in a
+    /// segment on both ends of a fourfold spread.
+    ///
+    /// Preferred over widening on a detected collapse, which was tried and
+    /// does not work: the mission that needs the wide gate needs it
+    /// throughout, and looks healthier than the one that does not on every
+    /// internal measure except speed.
+    double gateSpeedScale = 0.0;
+    double gateMinThreshold = 0.1;
     double gateMaxThreshold = 1.0;
     double gateOpenStep = 1.5;
     double gateCloseStep = 0.9;
