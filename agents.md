@@ -960,3 +960,27 @@ translational information, so a view that pins position only within a plane
 collapses it while leaving the correspondence count untouched. Measured, it
 does not collapse, which rules out geometric degeneracy as the cause and
 leaves the residual itself as the only thing that moves.
+
+## The balance's ceiling and degenerate geometry
+
+A rank-deficient view fits well along the directions it does constrain, so its
+residuals are small, so a residual-driven balance concludes the LiDAR is
+precise and awards it the maximum weight. That weight arrives in every
+direction, including the one the geometry says nothing about, and what was
+holding that direction is the inertial term.
+
+Measured on the shipped configuration: on thirteen of fourteen grand-tour
+missions `log(lidarScale)` is *negatively* correlated with `log(lidarCond)`,
+reaching -0.57 on eth-1 and -0.53 on con-4, and the windows that reach the
+1000x ceiling are six to nine times worse conditioned than that mission's own
+median. Oxford never reaches the ceiling at all, on any of three sequences,
+because its clouds carry real per-point times and a segment spans a real alpha
+range, so degenerate views are far rarer.
+
+`lidar_balance_conditioning_reference` makes the ceiling proportional to the
+conditioning instead of constant. Ships disabled.
+
+Note which tail this lives in. The high-residual windows are *better*
+conditioned than average, because well-conditioned geometry is what makes
+misfit show up as residual at all. Looking at residual spikes will not find
+this; it is the quiet windows that are dangerous.
