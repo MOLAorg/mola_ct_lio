@@ -79,6 +79,9 @@ void CtMapMatcher::initialize(const mrpt::containers::yaml & cfg)
     params.minSegmentPoints = cfg["min_segment_points"].as<std::size_t>();
   }
   readDouble("map_voxel_size", params.mapVoxelSize);
+  if (cfg.has("map_async_rebuild")) {
+    params.mapAsyncRebuild = cfg["map_async_rebuild"].as<bool>();
+  }
   readDouble("map_radius", params.mapRadius);
   readUint("map_prune_period", params.prunePeriod);
   readFloat("match_threshold", params.matchThreshold);
@@ -101,9 +104,9 @@ void CtMapMatcher::applyCovarianceOptions(IncrementalPointCloud & m) const
   m.creationOptions.max_distance_for_cov = params.maxDistCov;
   m.creationOptions.max_plane_deviation_for_cov = params.maxPlaneDevCov;
 
-  // A background rebuild would make a query's result depend on how far it had
-  // got, which this estimator is not allowed to tolerate.
-  m.creationOptions.async_rebuild = false;
+  // See the parameter's documentation: off buys bit-for-bit repeatability,
+  // on buys throughput, and map insertion is where the time goes.
+  m.creationOptions.async_rebuild = params.mapAsyncRebuild;
 }
 
 std::vector<ct::SegmentPoint> CtMapMatcher::downsample(

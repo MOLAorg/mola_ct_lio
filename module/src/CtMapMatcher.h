@@ -70,6 +70,15 @@ public:
     /// Voxel size used to decimate points on their way into the map. [m]
     double mapVoxelSize = 0.4;
 
+    /// Let the map rebuild its search tree on a background thread.
+    ///
+    /// Off by default, and deliberately: a rebuild in flight makes a query's
+    /// answer depend on how far it has got, so two runs over the same bag
+    /// stop agreeing bit for bit. That is worth paying for a result that has
+    /// to be defended, and worth switching off when the question is how fast
+    /// the method can go, since map insertion dominates the profile.
+    bool mapAsyncRebuild = false;
+
     /// Points farther than this from the latest sensor position are dropped. [m]
     double mapRadius = 120.0;
 

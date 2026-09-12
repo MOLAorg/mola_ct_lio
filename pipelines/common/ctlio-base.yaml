@@ -131,6 +131,11 @@ map_voxel_size: ${CTLIO_VOXEL_SIZE|0.4}
 # --- map ---
 map_radius: ${CTLIO_MAP_RADIUS|120.0}
 map_prune_period: ${CTLIO_PRUNE_PERIOD|25}
+# Background rebuild of the map's search tree. Off keeps two runs over the same
+# bag bit-for-bit identical, which a result that has to be defended needs. On is
+# worth measuring: profiled, map insertion is two thirds of the wall clock and
+# the rebuild inside it runs in the calling thread. See CtMapMatcher.h.
+map_async_rebuild: ${CTLIO_MAP_ASYNC|false}
 k_correspondences_for_cov: ${CTLIO_K_COV|20}
 min_correspondences_for_cov: ${CTLIO_MIN_K_COV|5}
 max_distance_for_cov: ${CTLIO_MAX_DIST_COV|1.0}
