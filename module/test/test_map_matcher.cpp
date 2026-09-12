@@ -203,7 +203,7 @@ TEST(CtMapMatcher, TheEstimatorRecoversAPerturbedSegmentThroughRealMatching)
   const auto r = opt.optimize(
     knots, segments,
     [&matcher](
-      std::size_t, const CtSegment & seg, const std::vector<SegmentPoint> & points,
+      std::size_t, const CtSegment & seg, const std::vector<SegmentPoint> & points, double,
       std::vector<PointCorrespondence> & out) { matcher.match(seg, points, out); },
     MarginalizationPrior{});
 

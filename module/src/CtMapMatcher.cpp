@@ -363,6 +363,14 @@ void CtMapMatcher::match(
 
   if (tleNN) tleNN.reset();
 
+  // Tolerance on the range comparison below. Below roughly a voxel the two
+  // ranges differ for reasons that carry no information: decimation, the
+  // sensor's own noise, and the surface's thickness in the map.
+  const double rayTolerance = 2.0 * params.mapVoxelSize;
+
+  viewRayStats_ = ViewRayStats();
+  double rangeGapSum = 0;
+
   out.reserve(out.size() + pairings.size());
   for (const auto & p : pairings) {
     if (p.local_idx >= points.size()) {
@@ -373,6 +381,25 @@ void CtMapMatcher::match(
     c.globalPoint = ct::Vec3(p.global.x, p.global.y, p.global.z);
     c.information = p.cov_inv.asEigen().cast<double>();
     out.push_back(c);
+
+    // The point is stated in the sensor frame, so its own norm is the range
+    // that produced it; the map point's range is taken from the same origin.
+    const ct::SegmentPoint & sp = points[p.local_idx];
+    const ct::Vec3 origin = segment.poseAt(sp.alpha).t;
+    const double rangeScan = sp.p.norm();
+    const double rangeMap = (c.globalPoint - origin).norm();
+    const double gap = rangeMap - rangeScan;
+
+    viewRayStats_.pairings++;
+    rangeGapSum += std::abs(gap);
+    if (gap > rayTolerance) {
+      viewRayStats_.behind++;
+    } else if (gap < -rayTolerance) {
+      viewRayStats_.inFront++;
+    }
+  }
+  if (viewRayStats_.pairings > 0) {
+    viewRayStats_.meanRangeGap = rangeGapSum / static_cast<double>(viewRayStats_.pairings);
   }
 }
 

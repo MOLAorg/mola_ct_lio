@@ -133,7 +133,7 @@ MatchFunction perfectMatcher(const World & w)
 {
   return [&w](
            std::size_t segmentIndex, const CtSegment &, const std::vector<SegmentPoint> & points,
-           std::vector<PointCorrespondence> & out) {
+           double, std::vector<PointCorrespondence> & out) {
     const auto & mapPoints = w.mapPoints[segmentIndex];
     for (std::size_t i = 0; i < points.size(); i++) {
       PointCorrespondence c;
@@ -282,7 +282,7 @@ TEST(WindowOptimizer, MarginalizingAndSlidingKeepsTheTrajectory)
   const World & world = w;
   MatchFunction shifted = [&world](
                             std::size_t segmentIndex, const CtSegment &,
-                            const std::vector<SegmentPoint> & points,
+                            const std::vector<SegmentPoint> & points, double,
                             std::vector<PointCorrespondence> & out) {
     const auto & mapPoints = world.mapPoints[segmentIndex + 1];
     for (std::size_t i = 0; i < points.size(); i++) {
@@ -341,7 +341,7 @@ MatchFunction noisyMatcher(const World & w, double sigma, uint32_t seed)
 {
   return [&w, sigma, seed](
            std::size_t segmentIndex, const CtSegment &, const std::vector<SegmentPoint> & points,
-           std::vector<PointCorrespondence> & out) {
+           double, std::vector<PointCorrespondence> & out) {
     std::mt19937 rng(seed + static_cast<uint32_t>(segmentIndex));
     std::normal_distribution<double> g(0.0, sigma);
     const auto & mapPoints = w.mapPoints[segmentIndex];

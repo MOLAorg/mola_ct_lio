@@ -79,6 +79,8 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble(
     "lidar_balance_conditioning_reference", params.optimizer.lidarBalanceConditioningReference);
   readDouble("lidar_balance_core_radius", params.optimizer.lidarBalanceCoreRadius);
+  readDouble("match_gate_anneal_start", params.optimizer.matchGateAnnealStart);
+  readDouble("match_gate_anneal_rate", params.optimizer.matchGateAnnealRate);
 
   readInt("max_iterations", params.optimizer.maxIterations);
   readInt("rematch_every", params.optimizer.rematchEvery);
@@ -509,11 +511,27 @@ void CtOdometryEngine::optimizeWindow()
 
   const auto matchFn = [this](
                          std::size_t, const ct::CtSegment & seg,
-                         const std::vector<ct::SegmentPoint> & points,
+                         const std::vector<ct::SegmentPoint> & points, double thresholdScale,
                          std::vector<ct::PointCorrespondence> & out) {
     mrpt::system::CTimeLoggerEntry tle(profiler, "optimizeWindow.match");
+    const float gate = matcher_.params.matchThreshold;
+    if (thresholdScale != 1.0) {
+      matcher_.params.matchThreshold = static_cast<float>(gate * thresholdScale);
+    }
     matcher_.match(seg, points, out);
+    matcher_.params.matchThreshold = gate;
+
+    const auto & v = matcher_.lastViewRayStats();
+    windowViewPairings_ += v.pairings;
+    windowViewBehind_ += v.behind;
+    windowViewFront_ += v.inFront;
+    windowViewGapSum_ += v.meanRangeGap * static_cast<double>(v.pairings);
   };
+
+  windowViewPairings_ = 0;
+  windowViewBehind_ = 0;
+  windowViewFront_ = 0;
+  windowViewGapSum_ = 0;
 
   mrpt::system::CTimeLoggerEntry tleOpt(profiler, "optimizeWindow");
   const std::vector<ct::Knot> predicted = knots;
@@ -709,6 +727,12 @@ void CtOdometryEngine::emitOldest()
   d.lidarChi2 = lastResult_.lidarChi2;
   d.lidarCoreChi2 = lastResult_.lidarCoreChi2;
   d.lidarCoreDof = lastResult_.lidarCoreDof;
+  if (windowViewPairings_ > 0) {
+    const auto n = static_cast<double>(windowViewPairings_);
+    d.viewBehindRatio = static_cast<double>(windowViewBehind_) / n;
+    d.viewFrontRatio = static_cast<double>(windowViewFront_) / n;
+    d.viewRangeGap = windowViewGapSum_ / n;
+  }
   d.lidarDof = lastResult_.lidarDof;
   d.lidarScale = lastResult_.lidarScale;
   d.lidarPositionConditioning = lastResult_.lidarPositionConditioning;

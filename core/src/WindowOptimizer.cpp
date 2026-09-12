@@ -175,7 +175,8 @@ void WindowOptimizer::addOdometry(
 
 void WindowOptimizer::assemble(
   const std::vector<Knot> & knots, const std::vector<Segment> & segments,
-  const MatchFunction & match, const MarginalizationPrior & prior, bool rematch, Result & result)
+  const MatchFunction & match, const MarginalizationPrior & prior, bool rematch,
+  double thresholdScale, Result & result)
 {
   const int dim = knotDim();
   const auto knotCount = static_cast<int>(knots.size());
@@ -224,7 +225,7 @@ void WindowOptimizer::assemble(
 
     if (rematch) {
       correspondences_[k].clear();
-      match(k, current, segments[k].points, correspondences_[k]);
+      match(k, current, segments[k].points, thresholdScale, correspondences_[k]);
     }
     if (correspondences_[k].empty()) {
       continue;
@@ -413,11 +414,25 @@ WindowOptimizer::Result WindowOptimizer::optimize(
   const int rematchEvery = std::max(1, params.rematchEvery);
 
   bool stepWasFinite = true;
+  int rematchIndex = 0;
 
   for (int iter = 0; iter < params.maxIterations; iter++) {
     const bool rematchedThisIteration = iter % rematchEvery == 0;
 
-    assemble(knots, segments, match, prior, rematchedThisIteration, result);
+    // Coarse to fine: the first correspondence search may reach further than
+    // the acceptance distance, and each later one reaches less far, so the
+    // window is pulled out of a wrong minimum before it is asked to sit
+    // precisely in the right one.
+    double thresholdScale = 1.0;
+    if (params.matchGateAnnealStart > 1.0) {
+      const double rate = std::clamp(params.matchGateAnnealRate, 0.0, 1.0);
+      thresholdScale = std::max(1.0, params.matchGateAnnealStart * std::pow(rate, rematchIndex));
+    }
+    if (rematchedThisIteration) {
+      rematchIndex++;
+    }
+
+    assemble(knots, segments, match, prior, rematchedThisIteration, thresholdScale, result);
 
     // --- solve and step ---
     Eigen::VectorXd step = system_.solve(params.lambda);
@@ -487,7 +502,9 @@ WindowOptimizer::Result WindowOptimizer::optimize(
   // mismatch there is a spurious force that the next window has no way to
   // tell from real information.
   if (stepWasFinite && result.iterations > 0) {
-    assemble(knots, segments, match, prior, false, result);
+    // Re-assembly only, with the correspondences already in hand, so the
+    // annealing multiplier has nothing to act on.
+    assemble(knots, segments, match, prior, false, 1.0, result);
   }
 
   // The balance moves once per window, not once per iteration: it describes

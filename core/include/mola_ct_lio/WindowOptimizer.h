@@ -111,7 +111,7 @@ struct Segment
  */
 using MatchFunction = std::function<void(
   std::size_t segmentIndex, const CtSegment & segment, const std::vector<SegmentPoint> & points,
-  std::vector<PointCorrespondence> & out)>;
+  double thresholdScale, std::vector<PointCorrespondence> & out)>;
 
 /** How the LiDAR block's weight is reconciled with its own residuals.
  *
@@ -185,6 +185,22 @@ public:
     /// against how stale the pairings are allowed to get, so it is worth a
     /// sweep rather than a guess.
     int rematchEvery = 1;
+
+    /// Multiplier applied to the matcher's acceptance distance on the first
+    /// rematch, decaying by `matchGateAnnealRate` on each later one until it
+    /// reaches one. Values above one search coarsely before committing.
+    ///
+    /// The acceptance distance is a basin of attraction, not an outlier
+    /// filter: correspondences are rebuilt as the pose improves, so a
+    /// distance too small for the prediction error converges to whichever
+    /// minimum the prediction started in, while one large enough to escape it
+    /// also admits pairings from the wrong surface once the pose is good.
+    /// Annealing asks for the wide basin and the tight final fit in turn
+    /// rather than trading one against the other. One disables it.
+    double matchGateAnnealStart = 1.0;
+
+    /// Geometric decay of the multiplier above, per rematch.
+    double matchGateAnnealRate = 0.5;
 
     bool useImu = true;
     Vec3 gravity{0.0, 0.0, -9.81};
@@ -426,7 +442,8 @@ private:
    */
   void assemble(
     const std::vector<Knot> & knots, const std::vector<Segment> & segments,
-    const MatchFunction & match, const MarginalizationPrior & prior, bool rematch, Result & result);
+    const MatchFunction & match, const MarginalizationPrior & prior, bool rematch,
+    double thresholdScale, Result & result);
 };
 
 /** The deviation of a knot from a reference state, in the increment convention

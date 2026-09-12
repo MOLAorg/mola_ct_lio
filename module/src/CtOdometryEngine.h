@@ -241,6 +241,12 @@ public:
     double lidarChi2 = 0;
     double lidarCoreChi2 = 0;
     double lidarCoreDof = 0;
+    /// Fraction of the window's pairings whose map point sits behind, or in
+    /// front of, the observed surface along the sensor's own view ray, and
+    /// the mean absolute range disagreement. See CtMapMatcher::ViewRayStats.
+    double viewBehindRatio = 0;
+    double viewFrontRatio = 0;
+    double viewRangeGap = 0;
     double lidarDof = 0;
     double lidarScale = 1.0;
     double lidarPositionConditioning = 1.0;
@@ -314,6 +320,12 @@ private:
 
   ct::MarginalizationPrior prior_;
   ct::WindowOptimizer::Result lastResult_;
+
+  /// Accumulated over one window's match calls, for the view-ray diagnostic.
+  std::size_t windowViewPairings_ = 0;
+  std::size_t windowViewBehind_ = 0;
+  std::size_t windowViewFront_ = 0;
+  double windowViewGapSum_ = 0;
 
   /// Recent correspondence counts, for the median the gate is judged against.
   std::vector<double> recentInliers_;

@@ -179,6 +179,32 @@ public:
   [[nodiscard]] static DecimateMethod decimateMethodFromString(const std::string & s);
 
   /** Correspondence query for one segment, in the form the estimator wants. */
+  /** How the pairings of one match call sit along the sensor's own view rays.
+   *
+   * The map is searched by proximity alone, so a scan point may pair with a
+   * map point on the far side of a thin structure, or across an occlusion
+   * boundary. Such a pairing is geometrically wrong while its residual stays
+   * small, so no residual-based rule can see it. Comparing each pairing's two
+   * ranges from the same sensor origin can: a map point materially farther
+   * along the ray than the point that was actually observed is behind a
+   * surface the sensor saw, and could not have produced that return.
+   */
+  struct ViewRayStats
+  {
+    std::size_t pairings = 0;
+    /// Map point farther along the ray than the observed point, beyond the
+    /// tolerance; i.e. the pairing reaches through the observed surface.
+    std::size_t behind = 0;
+    /// Map point nearer along the ray, beyond the tolerance.
+    std::size_t inFront = 0;
+    /// Mean of |rangeMap - rangeScan| over all pairings [m].
+    double meanRangeGap = 0;
+  };
+
+  /// Statistics of the most recent match() call. Costs two square roots per
+  /// pairing against a nearest-neighbor search, so it is always collected.
+  [[nodiscard]] const ViewRayStats & lastViewRayStats() const { return viewRayStats_; }
+
   void match(
     const ct::CtSegment & segment, const std::vector<ct::SegmentPoint> & points,
     std::vector<ct::PointCorrespondence> & out) const;
@@ -193,6 +219,7 @@ public:
 
 private:
   std::shared_ptr<IncrementalPointCloud> map_;
+  mutable ViewRayStats viewRayStats_;
   uint32_t insertionsSincePrune_ = 0;
 
   void applyCovarianceOptions(IncrementalPointCloud & m) const;

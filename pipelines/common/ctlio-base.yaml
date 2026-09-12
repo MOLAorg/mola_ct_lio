@@ -76,6 +76,11 @@ lidar_balance_conditioning_reference: ${CTLIO_BALANCE_COND|0.10}
 # noise estimate does not move when the acceptance gate does. See
 # WindowOptimizer.h.
 lidar_balance_core_radius: ${CTLIO_BALANCE_CORE|0.0}
+# Coarse-to-fine correspondence search inside one window solve. The acceptance
+# distance is a basin of attraction, so the first search may reach further and
+# each later one reaches less far. One disables it. See WindowOptimizer.h.
+match_gate_anneal_start: ${CTLIO_ANNEAL_START|1.0}
+match_gate_anneal_rate: ${CTLIO_ANNEAL_RATE|0.5}
 starvation_ratio: ${CTLIO_STARVATION|0.0}
 # A segment whose points carry their own capture times is ready to close a
 # whole sweep before the inertial samples spanning it arrive. Waiting costs
