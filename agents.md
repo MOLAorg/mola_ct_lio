@@ -12,8 +12,8 @@ Design document: `~/plans/lio/detail/lio-ct-lio-design.md`.
 | `core/` | the estimator. Eigen only, no ROS/MRPT/MOLA, so it builds and tests standalone |
 | `module/` | the MOLA front end: map, matchers, dataset input |
 | `apps/` | offline CLI |
-| `pipelines/` | per-dataset configuration: `common/ctlio-base.yaml` holds every knob, each file next to it `$import`s that base and `$define`s only what its dataset changes |
-| `mola-cli-launchs/` | MOLA launcher configs: `ct_lio_from_rosbag1.yaml` is the online, GUI counterpart of the offline CLI |
+| `pipelines/` | per-dataset configuration: `common/ctlio-base.yaml` holds every knob, each file next to it `$import`s that base and `$define`s only what its dataset changes. `ctlio-generic.yaml` overrides nothing and is what an unknown rig runs |
+| `mola-cli-launchs/` | MOLA launcher configs: `ct_lio_from_rosbag{1,2}.yaml` are the online, GUI counterparts of the offline CLI |
 | `scripts/` | dataset wrappers (`mola-ct-lio-{cli,gui}-<dataset>`) over the profiles in `scripts/lib/`, plus the scoring and bench tools |
 
 ## Build and test
@@ -154,6 +154,25 @@ file and one more name in the CMake wrapper list.
 The TF bag is required rather than optional, which is where this differs from
 the LiDAR-only wrappers: without `/tf` the IMU is placed at the vehicle origin,
 and the wrong lever arm produces a plausible trajectory rather than a failure.
+
+## Running on your own bag
+
+The `rosbag2` wrappers are not tied to a dataset: topics, /tf names and every
+pipeline knob come from the environment, and the pipeline they run
+(`ctlio-generic.yaml`) overrides nothing.
+
+```bash
+MOLA_LIDAR_TOPIC=/velodyne_points MOLA_IMU_TOPIC=/imu/data \
+MOLA_TF_BASE_LINK=base_footprint \
+  mola-ct-lio-cli-rosbag2 ~/bags/my-recording/      # or -gui- to watch it
+```
+
+`MOLA_TF_TOPIC` / `MOLA_TF_STATIC_TOPIC` handle a bag recorded under a
+namespace, where the transforms arrive as `/robot1/tf` and a reader looking at
+`/tf` finds no extrinsics rather than failing. An empty `MOLA_IMU_TOPIC`
+selects the LiDAR-only arm. A bag with no `/tf` at all needs the fixed poses
+instead (`MOLA_USE_FIXED_IMU_POSE=true` plus `IMU_POSE_*`); run either wrapper
+with no arguments for the whole list.
 
 ## Running on Oxford Spires, and what was verified against ground truth
 

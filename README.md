@@ -82,7 +82,16 @@ mola-ct-lio-cli-grandtour /data/grand-tour/2024-10-01-11-29-55/
 mola-ct-lio-gui-grandtour /data/grand-tour/2024-10-01-11-29-55/
 ```
 
-Run either with no arguments to see what it can be told.
+For your own recording there is a generic pair, which assumes nothing about
+the rig and takes its topics and frames from the environment:
+
+```bash
+MOLA_LIDAR_TOPIC=/velodyne_points MOLA_IMU_TOPIC=/imu/data \
+MOLA_TF_BASE_LINK=base_footprint \
+  mola-ct-lio-cli-rosbag2 ~/bags/my-recording/
+```
+
+Run any of them with no arguments to see what it can be told.
 
 `agents.md` records what each parameter is worth, and which ideas were measured
 and rejected.

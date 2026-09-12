@@ -1,0 +1,105 @@
+# -----------------------------------------------------------------------------
+#                        SLAM system definition for MOLA
+#
+# Continuous-time LiDAR-inertial odometry against a ROS 2 bag, with the 3D GUI.
+# This is the online counterpart of `mola-ct-lio-cli --input-rosbag2`.
+#
+# Not tied to any dataset: every topic and frame is an environment hook, so
+# this is the file to point at your own recording. Nothing about the rig is
+# assumed except that the bag's /tf_static places the sensors; a bag without
+# one needs the fixed poses below instead.
+#
+# The sensor labels are fixed: `lidar`, `imu` and `odometry` are what the
+# pipeline's *_sensor_label entries match, and `mola-ct-lio-cli` hardcodes the
+# same three, so the online and offline arms see identically labelled streams.
+# -----------------------------------------------------------------------------
+
+modules:
+  # =====================
+  # MolaViz
+  # =====================
+  - name: viz
+    type: ${MOLA_GUI_MODULE|mola::MolaVizImGui}
+    enabled: ${MOLA_WITH_GUI|true}
+    verbosity_level: "${MOLA_VERBOSITY_MOLA_VIZ|INFO}"
+    params:
+      imgui_app_name: ct_lio_from_rosbag2
+
+  # =====================
+  # CT LiDAR-inertial odometry
+  # =====================
+  - name: ct_lio
+    type: mola::CtLidarInertialOdometry
+    verbosity_level: "${MOLA_VERBOSITY_CT_LIO|INFO}"
+    raw_data_source: "dataset_input"
+    # Defaults to the dataset-neutral pipeline, which is the shared base with
+    # nothing overridden. Every CTLIO_* knob it exposes still works from the
+    # environment here, exactly as in the offline CLI.
+    params: "${CTLIO_PIPELINE_YAML|../pipelines/ctlio-generic.yaml}"
+
+  # =========================
+  # Offline dataset source
+  # =========================
+  - type: mola::Rosbag2Dataset
+    name: dataset_input
+    verbosity_level: "${MOLA_VERBOSITY_ROSBAG2|INFO}"
+
+    # Caps the rate topics are published at; a faster stream still keeps its
+    # own timestamps, it just arrives in bursts.
+    execution_rate: 50  # Hz
+    quit_mola_app_on_dataset_end: ${MOLA_QUIT_ON_DATASET_END|false}
+
+    # Optional visualization of the raw sensor streams in the GUI.
+    gui_preview_sensors:
+      - raw_sensor_label: "lidar"
+        decimation: 1
+        enabled: ${MOLA_WITH_GUI|true}
+        win_pos: 5 5 400 400
+
+    params:
+      # A single .mcap/.db3 file, or the directory holding a split bag's
+      # metadata.yaml.
+      rosbag_filename: ${MOLA_INPUT_ROSBAG2}
+      time_warp_scale: ${MOLA_TIME_WARP|1.0}
+      start_paused: ${MOLA_DATASET_START_PAUSED|false}
+
+      base_link_frame_id: "${MOLA_TF_BASE_LINK|base_link}"
+
+      # A bag recorded under a namespace carries its transforms as e.g.
+      # `/robot1/tf`, and a reader looking at `/tf` then silently finds no
+      # extrinsics rather than failing. Override both together.
+      tf_topic: "${MOLA_TF_TOPIC|/tf}"
+      tf_static_topic: "${MOLA_TF_STATIC_TOPIC|/tf_static}"
+
+      # Sensor poses come from the bag's /tf_static unless a fixed pose is
+      # forced below, which is what a bag without /tf needs. For this
+      # estimator the IMU's pose is not a detail: it is the lever arm the
+      # inertial factors are built on.
+      sensors:
+        - topic: ${MOLA_LIDAR_TOPIC|'/ouster/points'}
+          type: CObservationPointCloud
+          sensorLabel: "lidar"
+          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
+
+        - topic: ${MOLA_IMU_TOPIC|'/imu'}
+          type: CObservationIMU
+          sensorLabel: "imu"
+          is_optional: true
+          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+          # Workaround for drivers that stamp with a monotonic/uptime clock
+          # instead of wall-clock epoch time: use the bag's own receive time
+          # for this sensor instead of the message header stamp.
+          use_bag_recv_time_as_timestamp: ${MOLA_IMU_USE_BAG_RECV_TIME|false}
+
+        # External odometry, e.g. a legged platform's own kinematic-inertial
+        # estimate. Read as CObservationRobotPose rather than the planar
+        # CObservationOdometry, matching the offline CLI: the planar type would
+        # drop z, roll, pitch and the covariance. Off unless a topic is given,
+        # and note that the pipeline ALSO has to be told to believe it, via
+        # CTLIO_ODO_SIGMA_LIN / CTLIO_ODO_SIGMA_ANG.
+        - topic: ${MOLA_ODOMETRY_TOPIC|''}
+          type: ${MOLA_ODOMETRY_OBS_CLASS|CObservationRobotPose}
+          sensorLabel: "odometry"
+          is_optional: true

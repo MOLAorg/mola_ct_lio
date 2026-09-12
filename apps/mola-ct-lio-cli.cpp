@@ -237,47 +237,7 @@ std::string bags_to_yaml(const std::string & commaSeparated)
   }
   return out;
 }
-#endif
 
-#if defined(HAVE_MOLA_INPUT_ROSBAG2)
-std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
-  Cli & cli, const std::string & rosbag2file, const mrpt::system::VerbosityLevel logLevel)
-{
-  auto o = std::make_shared<mola::Rosbag2Dataset>();
-  o->setMinLoggingLevel(logLevel);
-
-  // Fixed sensor poses (env vars), for bags with no /tf or /tf_static (e.g.
-  // Oxford Spires): same env var names as mola-lidar-odometry-cli's own
-  // dataset_from_rosbag2(), so the same override snippet works for every
-  // wrapper in this benchmark suite. Only the LiDAR entry exists here.
-  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
-    R""""(
-    params:
-      rosbag_filename: %s
-      base_link_frame_id: "${MOLA_TF_BASE_LINK|base_link}"
-      sensors:
-        - topic: '%s'
-          type: CObservationPointCloud
-          sensorLabel: lidar
-          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"
-          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
-        - topic: '%s'
-          type: CObservationIMU
-          sensorLabel: imu
-          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"
-          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
-)"""",
-    bags_to_yaml(rosbag2file).c_str(), cli.arg_lidarTopic.getValue().c_str(),
-    cli.arg_imuTopic.getValue().c_str())));
-
-  o->initialize(cfg);
-  return o;
-}
-#endif
-
-#if defined(HAVE_MOLA_INPUT_ROSBAG1)
-namespace
-{
 /** The odometry sensor entry for the bag reader, or nothing when no topic was
  * asked for. Read as CObservationRobotPose rather than the planar
  * CObservationOdometry: a legged platform's estimate carries height, roll and
@@ -294,8 +254,53 @@ std::string odometrySensorYaml(const std::string & topic)
     "          sensorLabel: odometry\n",
     topic.c_str());
 }
-}  // namespace
 
+#endif
+
+#if defined(HAVE_MOLA_INPUT_ROSBAG2)
+std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag2(
+  Cli & cli, const std::string & rosbag2file, const mrpt::system::VerbosityLevel logLevel)
+{
+  auto o = std::make_shared<mola::Rosbag2Dataset>();
+  o->setMinLoggingLevel(logLevel);
+
+  // Fixed sensor poses (env vars), for bags with no /tf or /tf_static (e.g.
+  // Oxford Spires): same env var names as mola-lidar-odometry-cli's own
+  // dataset_from_rosbag2(), so the same override snippet works for every
+  // wrapper in this benchmark suite.
+  //
+  // The /tf topic names are hooks too, since a bag recorded under a namespace
+  // carries them as e.g. `/robot1/tf`, and a reader looking at `/tf` then finds
+  // no extrinsics at all rather than failing.
+  const auto cfg = mola::Yaml::FromText(mola::parse_yaml(mrpt::format(
+    R""""(
+    params:
+      rosbag_filename: %s
+      base_link_frame_id: "${MOLA_TF_BASE_LINK|base_link}"
+      tf_topic: "${MOLA_TF_TOPIC|/tf}"
+      tf_static_topic: "${MOLA_TF_STATIC_TOPIC|/tf_static}"
+      sensors:
+        - topic: '%s'
+          type: CObservationPointCloud
+          sensorLabel: lidar
+          fixed_sensor_pose: "${LIDAR_POSE_X|0} ${LIDAR_POSE_Y|0} ${LIDAR_POSE_Z|0} ${LIDAR_POSE_YAW|0} ${LIDAR_POSE_PITCH|0} ${LIDAR_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_LIDAR_POSE|false}
+        - topic: '%s'
+          type: CObservationIMU
+          sensorLabel: imu
+          fixed_sensor_pose: "${IMU_POSE_X|0} ${IMU_POSE_Y|0} ${IMU_POSE_Z|0} ${IMU_POSE_YAW|0} ${IMU_POSE_PITCH|0} ${IMU_POSE_ROLL|0}"
+          use_fixed_sensor_pose: ${MOLA_USE_FIXED_IMU_POSE|false}
+%s)"""",
+    bags_to_yaml(rosbag2file).c_str(), cli.arg_lidarTopic.getValue().c_str(),
+    cli.arg_imuTopic.getValue().c_str(),
+    odometrySensorYaml(cli.arg_odometryTopic.getValue()).c_str())));
+
+  o->initialize(cfg);
+  return o;
+}
+#endif
+
+#if defined(HAVE_MOLA_INPUT_ROSBAG1)
 std::shared_ptr<mola::OfflineDatasetSource> dataset_from_rosbag1(
   Cli & cli, const std::string & rosbag1file, const mrpt::system::VerbosityLevel logLevel)
 {

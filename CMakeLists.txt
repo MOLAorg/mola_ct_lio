@@ -202,7 +202,9 @@ if(ament_cmake_FOUND)
     # Every dataset gets a "gui" wrapper (online replay through mola-cli) and a
     # "cli" one (offline batch through mola-ct-lio-cli); both are thin front
     # ends over the same profile in scripts-lib/profiles/.
-    set(MOLA_CT_LIO_DATASET_WRAPPERS grandtour)
+    # `rosbag2` is not a dataset: it is the generic wrapper for a user's own
+    # bag, with every topic and frame taken from the environment.
+    set(MOLA_CT_LIO_DATASET_WRAPPERS grandtour rosbag2)
     set(MOLA_CT_LIO_WRAPPER_PATHS "")
     foreach(ds ${MOLA_CT_LIO_DATASET_WRAPPERS})
       list(APPEND MOLA_CT_LIO_WRAPPER_PATHS

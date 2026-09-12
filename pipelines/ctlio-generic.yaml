@@ -1,0 +1,22 @@
+# -----------------------------------------------------------------------------
+# Continuous-time LiDAR-inertial odometry, no particular dataset.
+#
+# This is the shared base and nothing else: every knob at its documented
+# default, the extrinsic at identity so the bag's own /tf decides it. It is
+# what the generic rosbag2 wrappers run, and the right starting point for a
+# new sensor rig.
+#
+# There is deliberately no `$define` block. A value that is right for one rig
+# and wrong for another belongs in the environment, not here: every knob is an
+# env-gated hook, so
+#
+#   CTLIO_MIN_RANGE=0.5 CTLIO_SEG_INTERVAL=0.05 mola-ct-lio-cli-rosbag2 <bag>
+#
+# tunes a run without editing anything. Once a set of values earns its keep on
+# a real dataset, copy this file, give it the dataset's name and put them in a
+# `$define` block, as the three dataset pipelines next to it do.
+#
+# Every knob, with its sweep range, is in the repository's agents.md.
+# -----------------------------------------------------------------------------
+
+$import: common/ctlio-base.yaml
