@@ -34,4 +34,22 @@ $define:
   CTLIO_MAP_MIN_R: 0.0
   CTLIO_MATCH_TH: 0.2
 
+  # The neighborhood each per-point covariance is fitted over. The base
+  # defaults take twenty neighbors within a metre, which on this rig is a patch
+  # small enough that the sensor's own noise competes with the surface's
+  # curvature: the plane fit then describes the noise, and the information
+  # matrix built from it is both wrong and confident about it. The radius is
+  # the dominant term and the count is a secondary one, but they compound.
+  #
+  # Measured on observatory-quarter-01, radius alone: 0.248 at 0.5 m, 0.070 at
+  # 1.0, 0.065 at 2.0, 0.062 at 3.0, 0.062 at 4.0, 0.062 at 6.0. With forty
+  # neighbors at 3.0 m it reaches 0.055, and sixty neighbors adds nothing
+  # (0.055). Six metres is past the turn on both observatory sequences.
+  #
+  # Costs about 20% in wall clock. Set per dataset: on the legged corpus the
+  # same values move every mission by under a centimetre and leave its worst
+  # one slightly worse, so there is nothing to collect there.
+  CTLIO_MAX_DIST_COV: 3.0
+  CTLIO_K_COV: 40
+
 $import: common/ctlio-base.yaml

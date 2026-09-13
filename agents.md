@@ -115,9 +115,9 @@ base file and to this table together.
 |---|---|---|---|---|
 | `voxel_size` | `CTLIO_VOXEL_SIZE` | 0.4 m | 0.2 - 1.0 | map insertion decimation |
 | `remove_points_farther_than` | `CTLIO_MAP_RADIUS` | 120 m | 50 - 200 | sliding-window extent |
-| `k_correspondences_for_cov` | `CTLIO_K_COV` | 20 | 8 - 30 | neighbors per GICP covariance; the corpus found 10 better on KITTI/Oxford for MOLA-LO |
+| `k_correspondences_for_cov` | `CTLIO_K_COV` | 20 (40 on Oxford) | 20 - 60 | neighbors per GICP covariance. Secondary to the radius below but compounds with it: 40 at 3 m reaches 0.0553 on obsq-01 where either alone reaches 0.062 to 0.070. 60 adds nothing. Values under 20 are clearly worse here, unlike the MOLA-LO corpus note |
 | `min_correspondences_for_cov` | `CTLIO_MIN_K_COV` | 5 | 3 - 10 | below this an isotropic covariance is used |
-| `max_distance_for_cov` | `CTLIO_MAX_DIST_COV` | 1.0 m | 0.5 - 3.0 | |
+| `max_distance_for_cov` | `CTLIO_MAX_DIST_COV` | 1.0 m (3.0 on Oxford) | 1.0 - 4.0 | radius each covariance is fitted over, and the single most valuable knob measured on Oxford: 0.248 at 0.5 m, 0.070 at 1.0, 0.062 at 3.0. Too small a patch fits the sensor noise rather than the surface. Neutral on grand-tour, so it is set per dataset |
 | `max_plane_deviation_for_cov` | `CTLIO_PLANE_DEV_COV` | 0 | 0 - 0.1 | 0 disables the plane regularization gate |
 
 ### Matcher (`mp2p_icp`)
