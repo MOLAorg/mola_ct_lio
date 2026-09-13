@@ -69,6 +69,11 @@ base file and to this table together.
 | `lidar_balance` | `CTLIO_LIDAR_BALANCE` | TwoSided | None, DownOnly, TwoSided | reconciles the LiDAR block's weight with its own residuals, see below |
 | `lidar_balance_max_scale` | `CTLIO_LIDAR_BALANCE_MAX` | 1000 | 100 - 1e4 | how far the balance may rescale the block in either direction |
 | `lidar_balance_core_radius` | `CTLIO_BALANCE_CORE` | 0 (off) | 0.1 - 0.4 | residual radius the balance's reduced chi-square is taken over, so the noise estimate does not move with the acceptance gate |
+| `map_min_translation_between_inserts` | `CTLIO_MAP_MIN_T` | 0 (off; 0.10 on grand-tour) | 0.05 - 0.30 | travel before another map insertion. Bounds how many copies of one surface a slow stretch writes. Set per dataset: it is worth 2.9x on the worst grand-tour mission and costs Oxford accuracy |
+| `map_min_rotation_between_inserts` | `CTLIO_MAP_MIN_R` | 0 (off; 5 on grand-tour) | 2 - 15 | as above, for rotation [deg] |
+| `map_min_point_separation` | `CTLIO_MAP_MIN_SEP` | 0 (off) | - | rejects a candidate point landing on one already held. Measured worse than travel spacing on both accuracy and speed; kept disabled |
+| `match_gate_anneal_start` | `CTLIO_ANNEAL_START` | 1 (off) | 1 - 4 | multiplier on the acceptance distance at the first correspondence search of a window, decaying to one |
+| `match_gate_anneal_rate` | `CTLIO_ANNEAL_RATE` | 0.5 | 0.3 - 0.8 | geometric decay of the multiplier above, per rematch |
 | `twist_continuity_weight` | `CTLIO_TWIST_W` | 2.0 | 0 - 10 | LiDAR-only only; ignored once IMU factors are present |
 
 ### Residual weighting

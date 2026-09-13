@@ -22,4 +22,16 @@ $define:
   # healthy data. Measured on all three sequences it costs 6% to 13%.
   CTLIO_MIN_SEG_PTS: 0
 
+  # Spacing map insertions by travel stays off here. It is a large win on the
+  # legged corpus, but this rig's segments carry 1560 points against that
+  # corpus's 5000 to 6400, over a fifth of the interval, so the same bar leaves
+  # a third of the map density behind: 16k points per metre against 52k. It
+  # runs four times faster with it and scores worse, 0.0571 to 0.0661 on the
+  # sequence that suffers most, and tightening the bar to 3 cm recovers only
+  # part of that. Enable it here only when throughput matters more than
+  # accuracy.
+  CTLIO_MAP_MIN_T: 0.0
+  CTLIO_MAP_MIN_R: 0.0
+  CTLIO_MATCH_TH: 0.2
+
 $import: common/ctlio-base.yaml

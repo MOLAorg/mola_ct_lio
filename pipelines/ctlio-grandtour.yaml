@@ -36,4 +36,28 @@ $define:
   # and costs Oxford a factor of two, which is why it is set per dataset.
   CTLIO_MIN_SEG_PTS: 5000
 
+  # Spacing map insertions by travel, and the tight acceptance distance it
+  # makes possible. Insertion is otherwise driven by the segment rate, so a
+  # mission that slows to 0.16 m/s writes the same ground four times more
+  # densely than its own median, and the neighborhood the GICP covariances are
+  # fitted to ends up describing the pose error of those windows rather than
+  # the surface. The mission worst affected goes from 0.275 to 0.096 once the
+  # spacing is in force, and it no longer needs the wide acceptance distance it
+  # appeared to demand; the rest of the corpus moves by millimeters. Time in
+  # map insertion falls by an order of magnitude with it.
+  #
+  # Both are set per dataset. Oxford's segments carry a third as many points
+  # over a fifth of the interval, so the same spacing leaves it far too sparse
+  # a map and costs it accuracy there. See agents.md.
+  CTLIO_MAP_MIN_T: 0.10
+  CTLIO_MAP_MIN_R: 5
+  CTLIO_MATCH_TH: 0.2
+
+  # Finer than the base default, which the spacing above pays for: fewer
+  # insertions leave room to put more points into each one that is kept. Worth
+  # 16% on the mission the spacing costs the most, and neutral elsewhere. At
+  # 0.20 one mission moves by as much as its entire error, so this is as fine
+  # as the corpus supports.
+  CTLIO_VOXEL_SIZE: 0.3
+
 $import: common/ctlio-base.yaml
