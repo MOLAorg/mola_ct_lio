@@ -304,6 +304,20 @@ public:
     /// while the gate moves keeps the two decisions independent. [m]
     double lidarBalanceCoreRadius = 0.0;
 
+    /// Floor on the balance, i.e. the least weight it may leave the LiDAR
+    /// term. Zero disables it.
+    ///
+    /// The ceiling above bounds what a well-fitting window may claim; nothing
+    /// bounds what a badly-fitting one may give up. While the map is still
+    /// being built the residuals are large because there is little to match
+    /// against, not because the sensor is noisy, and the balance reads that as
+    /// noise and withdraws four fifths of the LiDAR's weight over the first
+    /// seconds of every run. A platform that waits through it pays nothing; one
+    /// that is already walking pays for the whole distance it covers meanwhile.
+    /// The outlier clamp cannot help here, since it compares a window against a
+    /// running median that rises with the same episode.
+    double lidarBalanceMinScale = 0.0;
+
     /// Uncertainty of an external odometry's relative motion over one
     /// segment. Zero on either disables that half, which is the default: the
     /// factor is measured and useful, but a second pose source fused while

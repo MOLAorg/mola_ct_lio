@@ -296,7 +296,8 @@ void WindowOptimizer::assemble(
       maxScale = std::max(1.0, maxScale * earned);
     }
     if (kappa > 0 && std::isfinite(kappa)) {
-      result.lidarScaleInstant = std::clamp(1.0 / kappa, 1.0 / maxScale, maxScale);
+      const double floorScale = std::max(1.0 / maxScale, params.lidarBalanceMinScale);
+      result.lidarScaleInstant = std::clamp(1.0 / kappa, std::min(floorScale, maxScale), maxScale);
     }
 
     // What is being estimated is a property of the sensor and of the scene's

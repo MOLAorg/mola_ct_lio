@@ -113,6 +113,25 @@ public:
     /// a property of the geometry while still admitting whatever is new. [m]
     double mapMinPointSeparation = 0.0;
 
+    /// Rejects a pairing whose combined GICP information is more isotropic
+    /// than this, on a scale where one is perfectly scattered and zero is a
+    /// perfect plane. Zero disables the test.
+    ///
+    /// The information matrix is fitted to a neighborhood, so it describes a
+    /// surface only where there is one. Foliage and other volumetric clutter
+    /// return a near-isotropic matrix: the fit is not wrong about a plane, it
+    /// is a plane fitted to something that is not planar, and the pairing it
+    /// weights pulls in a direction the geometry never constrained. Neither
+    /// the correspondence distance nor the window's conditioning can see this,
+    /// the first because such a pairing is genuinely nearby and the second
+    /// because a window can be well conditioned overall while a fraction of
+    /// its pairings sit in clutter.
+    ///
+    /// Measured as `3*det^(1/3)/trace`, which is one for an isotropic matrix
+    /// and falls toward zero as it becomes anisotropic, and which costs a
+    /// determinant and a trace rather than an eigendecomposition.
+    double matchMaxIsotropy = 0.0;
+
     /// How an occupied voxel's representative point is chosen, for both the
     /// source cloud and the map.
     DecimateMethod decimateMethod = DecimateMethod::FirstPoint;
@@ -234,10 +253,14 @@ private:
   std::shared_ptr<IncrementalPointCloud> map_;
   mutable ViewRayStats viewRayStats_;
   std::size_t lastInsertedPoints_ = 0;
+  mutable std::size_t lastIsotropyRejected_ = 0;
 
 public:
   /// Points actually written by the most recent insert() call.
   [[nodiscard]] std::size_t lastInsertedPoints() const { return lastInsertedPoints_; }
+
+  /// Pairings dropped by the isotropy test in the most recent match().
+  [[nodiscard]] std::size_t lastIsotropyRejected() const { return lastIsotropyRejected_; }
 
 private:
   uint32_t insertionsSincePrune_ = 0;

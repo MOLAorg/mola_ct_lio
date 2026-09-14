@@ -184,6 +184,7 @@ void CtMapMatcher::initialize(const mrpt::containers::yaml & cfg)
   readUint("map_prune_period", params.prunePeriod);
   readFloat("match_threshold", params.matchThreshold);
   readDouble("map_min_point_separation", params.mapMinPointSeparation);
+  readDouble("match_max_isotropy", params.matchMaxIsotropy);
   readFloat("match_threshold_far", params.matchThresholdFar);
   readFloat("match_knee_range", params.matchKneeRange);
   readFloat("match_transition_width", params.matchTransitionWidth);
@@ -371,6 +372,7 @@ void CtMapMatcher::match(
 
   viewRayStats_ = ViewRayStats();
   double rangeGapSum = 0;
+  lastIsotropyRejected_ = 0;
 
   out.reserve(out.size() + pairings.size());
   for (const auto & p : pairings) {
@@ -381,6 +383,22 @@ void CtMapMatcher::match(
     c.localIndex = p.local_idx;
     c.globalPoint = ct::Vec3(p.global.x, p.global.y, p.global.z);
     c.information = p.cov_inv.asEigen().cast<double>();
+
+    // A neighborhood with no surface in it returns a near-isotropic
+    // information matrix, and the pairing it weights constrains a direction
+    // the geometry never did.
+    if (params.matchMaxIsotropy > 0) {
+      const double trace = c.information.trace();
+      const double det = c.information.determinant();
+      if (trace > 0 && det > 0) {
+        const double isotropy = 3.0 * std::cbrt(det) / trace;
+        if (isotropy > params.matchMaxIsotropy) {
+          lastIsotropyRejected_++;
+          continue;
+        }
+      }
+    }
+
     out.push_back(c);
 
     // The point is stated in the sensor frame, so its own norm is the range

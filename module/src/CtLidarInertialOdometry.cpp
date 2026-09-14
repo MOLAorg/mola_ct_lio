@@ -151,7 +151,7 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
     "# t x y z vx vy vz bax bay baz bgx bgy bgz inliers chi2 segpts iters conv "
     "limited priorTrace priorGrad lidarPosInfo imuPosInfo priorPosInfo lidarChi2 "
     "lidarDof lidarScale starved imuCoverage lidarCond lidarWeakest "
-    "lidarCoreChi2 lidarCoreDof viewBehind viewFront viewGap");
+    "lidarCoreChi2 lidarCoreDof viewBehind viewFront viewGap weakDirVert");
 
   engine_->onPose = [this](
                       double t, const ct::SE3 & pose, const CtOdometryEngine::Diagnostics & d) {
@@ -178,7 +178,7 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
       *state_dump_ << mrpt::format(
         "%.6f %.4f %.4f %.4f %.4f %.4f %.4f %.6f %.6f %.6f %.6f %.6f %.6f %zu %.4e %zu %d %d "
         "%d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %d %.4f %.6e %.6e %.6e %.6e %.6e %.6e "
-        "%.6e\n",
+        "%.6e %.6e\n",
         t, pose.t.x(), pose.t.y(), pose.t.z(), d.velocity.x(), d.velocity.y(), d.velocity.z(),
         d.biasAcc.x(), d.biasAcc.y(), d.biasAcc.z(), d.biasGyro.x(), d.biasGyro.y(), d.biasGyro.z(),
         d.inliers, d.chi2, d.segmentPoints, d.iterations, d.converged ? 1 : 0,

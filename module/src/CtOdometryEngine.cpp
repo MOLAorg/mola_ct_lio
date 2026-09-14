@@ -80,6 +80,7 @@ void CtOdometryEngine::initialize(const mrpt::containers::yaml & cfg)
   readDouble(
     "lidar_balance_conditioning_reference", params.optimizer.lidarBalanceConditioningReference);
   readDouble("lidar_balance_core_radius", params.optimizer.lidarBalanceCoreRadius);
+  readDouble("lidar_balance_min_scale", params.optimizer.lidarBalanceMinScale);
   readDouble("match_gate_anneal_start", params.optimizer.matchGateAnnealStart);
   readDouble("match_gate_anneal_rate", params.optimizer.matchGateAnnealRate);
   readDouble("map_min_translation_between_inserts", params.mapMinTranslationBetweenInserts);
@@ -748,6 +749,14 @@ void CtOdometryEngine::emitOldest()
   d.priorPositionInfo = lastResult_.priorPositionInfo;
   d.lidarChi2 = lastResult_.lidarChi2;
   d.lidarCoreChi2 = lastResult_.lidarCoreChi2;
+  {
+    // The eigenvalue ratio says how unevenly the geometry constrains
+    // translation; it does not say which direction is the loose one. Height is
+    // the mode a LiDAR map cannot recover on its own, so it is worth naming.
+    const auto & w = lastResult_.lidarWeakDirection;
+    const double n = w.norm();
+    d.weakDirVertical = n > 0 ? std::abs(w.z()) / n : 0.0;
+  }
   d.lidarCoreDof = lastResult_.lidarCoreDof;
   if (windowViewPairings_ > 0) {
     const auto n = static_cast<double>(windowViewPairings_);

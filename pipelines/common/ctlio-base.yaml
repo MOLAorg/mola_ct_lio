@@ -76,6 +76,10 @@ lidar_balance_conditioning_reference: ${CTLIO_BALANCE_COND|0.10}
 # noise estimate does not move when the acceptance gate does. See
 # WindowOptimizer.h.
 lidar_balance_core_radius: ${CTLIO_BALANCE_CORE|0.0}
+# Floor on the balance. The ceiling bounds what a well-fitting window may
+# claim; this bounds what a badly-fitting one may give up, which is what a
+# half-built map looks like. See WindowOptimizer.h.
+lidar_balance_min_scale: ${CTLIO_BALANCE_MIN_SCALE|0.0}
 # Coarse-to-fine correspondence search inside one window solve. The acceptance
 # distance is a basin of attraction, so the first search may reach further and
 # each later one reaches less far. One disables it. See WindowOptimizer.h.
@@ -93,6 +97,11 @@ map_min_rotation_between_inserts: ${CTLIO_MAP_MIN_R|0.0}
 # measurement rather than a weak one. See agents.md.
 max_imu_wait_segments: ${CTLIO_IMU_WAIT|3.0}
 min_imu_coverage: ${CTLIO_IMU_COVERAGE|0.98}
+# A measured bias beyond these bounds is discarded as platform motion rather
+# than seeded, since a bias averaged over a window the platform moved through
+# is the motion. Zero on either never seeds that one. See agents.md.
+max_initial_gyro_bias: ${CTLIO_MAX_INIT_GYRO|0.02}
+max_initial_accel_bias: ${CTLIO_MAX_INIT_ACC|0.5}
 velocity_prior_sigma: ${CTLIO_VEL_PRIOR|5.0}
 bias_prior_sigma_acc: ${CTLIO_BIAS_PRIOR_ACC|0.3}
 bias_prior_sigma_gyro: ${CTLIO_BIAS_PRIOR_GYRO|0.02}
@@ -165,6 +174,10 @@ match_threshold: ${CTLIO_MATCH_TH|0.8}
 # inserted, so map density follows the geometry rather than the dwell time.
 # Zero inserts every decimated point. See CtMapMatcher.h.
 map_min_point_separation: ${CTLIO_MAP_MIN_SEP|0.0}
+# Rejects a pairing whose information matrix is more isotropic than this, i.e.
+# fitted to a neighborhood holding no surface. One is scattered, zero is a
+# perfect plane. Zero disables it. See CtMapMatcher.h.
+match_max_isotropy: ${CTLIO_MAX_ISO|0.0}
 # An adaptive gate: tight in steady state, opened while the correspondence
 # count is collapsing against its own recent median, relaxed once it recovers.
 # Zero leaves the gate fixed. See CtOdometryEngine.h for why the count and not

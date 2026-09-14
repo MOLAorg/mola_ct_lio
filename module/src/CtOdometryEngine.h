@@ -263,6 +263,10 @@ public:
     double viewBehindRatio = 0;
     double viewFrontRatio = 0;
     double viewRangeGap = 0;
+    /// How vertical the least-constrained translational direction is, as
+    /// |cos| between it and world up. One means the direction the geometry
+    /// says least about is height itself.
+    double weakDirVertical = 0;
     double lidarDof = 0;
     double lidarScale = 1.0;
     double lidarPositionConditioning = 1.0;

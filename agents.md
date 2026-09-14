@@ -72,6 +72,9 @@ base file and to this table together.
 | `map_min_translation_between_inserts` | `CTLIO_MAP_MIN_T` | 0 (off; 0.10 on grand-tour) | 0.05 - 0.30 | travel before another map insertion. Bounds how many copies of one surface a slow stretch writes. Set per dataset: it is worth 2.9x on the worst grand-tour mission and costs Oxford accuracy |
 | `map_min_rotation_between_inserts` | `CTLIO_MAP_MIN_R` | 0 (off; 5 on grand-tour) | 2 - 15 | as above, for rotation [deg] |
 | `map_min_point_separation` | `CTLIO_MAP_MIN_SEP` | 0 (off) | - | rejects a candidate point landing on one already held. Measured worse than travel spacing on both accuracy and speed; kept disabled |
+| `lidar_balance_min_scale` | `CTLIO_BALANCE_MIN_SCALE` | 0 (off) | 50 - 250 | floor on the balance. The ceiling bounds what a well-fitting window may claim; this bounds what a badly-fitting one may give up, which is what a half-built map looks like. Worth 10% on one reference mission and nothing on three others |
+| `max_initial_gyro_bias` | `CTLIO_MAX_INIT_GYRO` | 0.02 rad/s | 0 - 0.05 | measured seeds beyond this are discarded as platform motion; zero never seeds. Exposed to the pipelines from this date, previously reachable only from code |
+| `max_initial_accel_bias` | `CTLIO_MAX_INIT_ACC` | 0.5 m/s^2 | 0 - 1.0 | same, for the accelerometer |
 | `match_gate_anneal_start` | `CTLIO_ANNEAL_START` | 1 (off) | 1 - 4 | multiplier on the acceptance distance at the first correspondence search of a window, decaying to one |
 | `match_gate_anneal_rate` | `CTLIO_ANNEAL_RATE` | 0.5 | 0.3 - 0.8 | geometric decay of the multiplier above, per rematch |
 | `twist_continuity_weight` | `CTLIO_TWIST_W` | 2.0 | 0 - 10 | LiDAR-only only; ignored once IMU factors are present |
