@@ -20,7 +20,7 @@
 #include <mola_kernel/interfaces/FrontEndBase.h>
 #include <mola_kernel/interfaces/LocalizationSourceBase.h>
 #include <mola_kernel/interfaces/MapSourceBase.h>
-#include <mrpt/opengl/CSetOfLines.h>
+#include <mrpt/viz/CSetOfLines.h>
 #include <mrpt/poses/CPose3D.h>
 #include <mrpt/poses/CPose3DInterpolator.h>
 
@@ -179,7 +179,7 @@ private:
     int map_update_decimation = 10;
   } visualization_params_;
 
-  mrpt::opengl::CSetOfLines::Ptr gl_path_;
+  mrpt::viz::CSetOfLines::Ptr gl_path_;
   int map_viz_counter_ = 0;
 
   void updateVisualization(const mrpt::poses::CPose3D & pose);

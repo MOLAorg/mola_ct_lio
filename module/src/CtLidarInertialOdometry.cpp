@@ -18,13 +18,14 @@
 #include <mrpt/containers/yaml.h>
 #include <mrpt/core/format.h>
 #include <mrpt/core/lock_helper.h>
+#include <mrpt/maps/CPointsMap.h>
 #include <mrpt/obs/CObservationIMU.h>
 #include <mrpt/obs/CObservationOdometry.h>
 #include <mrpt/obs/CObservationPointCloud.h>
 #include <mrpt/obs/CObservationRobotPose.h>
-#include <mrpt/opengl/CPointCloudColoured.h>
-#include <mrpt/opengl/CSetOfObjects.h>
-#include <mrpt/opengl/stock_objects.h>
+#include <mrpt/viz/CPointCloudColoured.h>
+#include <mrpt/viz/CSetOfObjects.h>
+#include <mrpt/viz/stock_objects.h>
 #include <mrpt/poses/Lie/SO.h>
 
 #include <cstdlib>
@@ -102,7 +103,7 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
 
   auto cfg = c;
   if (cfg.has("params")) {
-    cfg = cfg["params"];
+    cfg = mrpt::containers::yaml(cfg["params"]);
   }
 
   YAML_LOAD_OPT(lidar_sensor_label, std::string);
@@ -454,9 +455,9 @@ void CtLidarInertialOdometry::updateVisualization(const mrpt::poses::CPose3D & p
   }
 
   if (visualization_params_.current_pose_corner_size > 0) {
-    auto glVehicle = mrpt::opengl::CSetOfObjects::Create();
+    auto glVehicle = mrpt::viz::CSetOfObjects::Create();
     glVehicle->insert(
-      mrpt::opengl::stock_objects::CornerXYZ(visualization_params_.current_pose_corner_size));
+      mrpt::viz::stock_objects::CornerXYZ(visualization_params_.current_pose_corner_size));
     glVehicle->setPose(pose);
     visualizer_->update_3d_object("ctlio/vehicle", glVehicle);
   }
@@ -468,12 +469,12 @@ void CtLidarInertialOdometry::updateVisualization(const mrpt::poses::CPose3D & p
 void CtLidarInertialOdometry::updateVisualizationPath(const mrpt::poses::CPose3D & pose)
 {
   if (!visualization_params_.show_trajectory) {
-    visualizer_->update_3d_object("ctlio/path", mrpt::opengl::CSetOfObjects::Create());
+    visualizer_->update_3d_object("ctlio/path", mrpt::viz::CSetOfObjects::Create());
     return;
   }
 
   if (!gl_path_) {
-    gl_path_ = mrpt::opengl::CSetOfLines::Create();
+    gl_path_ = mrpt::viz::CSetOfLines::Create();
   }
 
   const auto t = pose.translation();
@@ -483,15 +484,15 @@ void CtLidarInertialOdometry::updateVisualizationPath(const mrpt::poses::CPose3D
     gl_path_->appendLineStrip(t);
   }
 
-  auto grp = mrpt::opengl::CSetOfObjects::Create();
-  grp->insert(mrpt::opengl::CSetOfLines::Create(*gl_path_));
+  auto grp = mrpt::viz::CSetOfObjects::Create();
+  grp->insert(mrpt::viz::CSetOfLines::Create(*gl_path_));
   visualizer_->update_3d_object("ctlio/path", grp);
 }
 
 void CtLidarInertialOdometry::updateVisualizationMap()
 {
   if (!visualization_params_.show_map) {
-    visualizer_->update_3d_object("ctlio/map", mrpt::opengl::CSetOfObjects::Create());
+    visualizer_->update_3d_object("ctlio/map", mrpt::viz::CSetOfObjects::Create());
     return;
   }
 
@@ -510,7 +511,7 @@ void CtLidarInertialOdometry::updateVisualizationMap()
     return;
   }
 
-  auto glCloud = mrpt::opengl::CPointCloudColoured::Create();
+  auto glCloud = mrpt::viz::CPointCloudColoured::Create();
   glCloud->loadFromPointsMap(points.get());
   glCloud->setPointSize(visualization_params_.map_point_size);
 
@@ -519,7 +520,7 @@ void CtLidarInertialOdometry::updateVisualizationMap()
   const auto bbox = points->boundingBox();
   glCloud->recolorizeByCoordinate(bbox.min.z, bbox.max.z, 2 /*Z*/, mrpt::img::TColormap::cmJET);
 
-  auto grp = mrpt::opengl::CSetOfObjects::Create();
+  auto grp = mrpt::viz::CSetOfObjects::Create();
   grp->insert(glCloud);
   visualizer_->update_3d_object("ctlio/map", grp);
 }

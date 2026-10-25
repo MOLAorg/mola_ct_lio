@@ -17,9 +17,9 @@
   <depend>mola_metric_maps</depend>
   <depend>mola_imu_preintegration</depend>
   <depend>mp2p_icp_map</depend>
-  <depend>mrpt_libmaps</depend>
-  <depend>mrpt_libobs</depend>
-  <depend>mrpt_libtclap</depend>
+  <depend>mrpt_maps</depend>
+  <depend>mrpt_obs</depend>
+  <depend>cli11</depend>
 
   <!-- optional dataset sources for the offline CLI -->
   <depend>mola_input_rosbag2</depend>

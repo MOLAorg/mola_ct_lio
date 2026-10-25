@@ -22,9 +22,9 @@ find_package(mola_metric_maps QUIET)
 find_package(mola_imu_preintegration QUIET)
 find_package(mola_kernel QUIET)
 find_package(mola_yaml QUIET)
-find_package(mrpt-obs QUIET)
+find_package(mrpt_obs QUIET)
 find_package(mp2p_icp_map QUIET)
-find_package(mrpt-maps QUIET)
+find_package(mrpt_maps QUIET)
 
 # ------------------------------------------------------------------------------
 # The continuous-time estimator core.
@@ -62,7 +62,7 @@ set_target_properties(mola_ct_lio_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # The matching layer: the local map and the correspondence queries.
 # ------------------------------------------------------------------------------
 set(MOLA_CT_LIO_HAS_MODULE FALSE)
-if(mola_metric_maps_FOUND AND mola_imu_preintegration_FOUND AND mrpt-maps_FOUND)
+if(mola_metric_maps_FOUND AND mola_imu_preintegration_FOUND AND mrpt_maps_FOUND)
   set(MOLA_CT_LIO_HAS_MODULE TRUE)
 
   add_library(mola_ct_lio_matching
@@ -77,12 +77,12 @@ if(mola_metric_maps_FOUND AND mola_imu_preintegration_FOUND AND mrpt-maps_FOUND)
     mola_ct_lio_core
     mola::mola_metric_maps
     mola::mola_imu_preintegration
-    mrpt::maps
-    mrpt::obs
+    mrpt::mrpt_maps
+    mrpt::mrpt_obs
   )
   set_target_properties(mola_ct_lio_matching PROPERTIES POSITION_INDEPENDENT_CODE ON)
 else()
-  message(STATUS "mola_metric_maps or mrpt-maps not found: skipping the matching layer")
+  message(STATUS "mola_metric_maps or mrpt_maps not found: skipping the matching layer")
 endif()
 
 # ------------------------------------------------------------------------------
@@ -114,9 +114,9 @@ endif()
 # Offline CLI.
 # ------------------------------------------------------------------------------
 if(MOLA_CT_LIO_HAS_FRONTEND)
-  find_package(mrpt-tclap QUIET)
+  find_package(CLI11 QUIET)
 
-  if(mrpt-tclap_FOUND)
+  if(CLI11_FOUND)
     find_package(mola_input_mulran_dataset QUIET)
     find_package(mola_input_rawlog QUIET)
     find_package(mola_input_rosbag2 QUIET)
@@ -126,8 +126,8 @@ if(MOLA_CT_LIO_HAS_FRONTEND)
     add_executable(mola-ct-lio-cli apps/mola-ct-lio-cli.cpp)
     target_link_libraries(mola-ct-lio-cli
       ${PROJECT_NAME}
-      mrpt::maps
-      mrpt::tclap
+      mrpt::mrpt_maps
+      CLI11::CLI11
     )
 
     foreach(pkg_def IN ITEMS
