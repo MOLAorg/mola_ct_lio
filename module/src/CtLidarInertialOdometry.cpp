@@ -178,7 +178,7 @@ void CtLidarInertialOdometry::initialize_frontend(const Yaml & c)
       *state_dump_ << mrpt::format(
         "%.6f %.4f %.4f %.4f %.4f %.4f %.4f %.6f %.6f %.6f %.6f %.6f %.6f %zu %.4e %zu %d %d "
         "%d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %d %.4f %.6e %.6e %.6e %.6e %.6e %.6e "
-        "%.6e %.6e\n",
+        "%.6e\n",
         t, pose.t.x(), pose.t.y(), pose.t.z(), d.velocity.x(), d.velocity.y(), d.velocity.z(),
         d.biasAcc.x(), d.biasAcc.y(), d.biasAcc.z(), d.biasGyro.x(), d.biasGyro.y(), d.biasGyro.z(),
         d.inliers, d.chi2, d.segmentPoints, d.iterations, d.converged ? 1 : 0,
